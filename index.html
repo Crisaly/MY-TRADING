@@ -46,11 +46,38 @@ dialog label{display:flex;justify-content:space-between;align-items:center;gap:1
 dialog input:not([type=checkbox]):not([type=color]){border:1px solid #d1d4dc;border-radius:6px;padding:6px 8px;width:140px}
 dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .pri{background:#222;color:#fff}.pri:hover{background:#444}
+
+/* layouts */
+#layBtn{display:flex;align-items:center;gap:6px}
+#layBtn svg{width:20px;height:20px}
+#panes{flex:1;display:none;min-height:0;gap:3px;background:#eceef2;padding:0}
+#panes iframe{border:0;width:100%;height:100%;background:#fff;min-width:0;min-height:0}
+body.multi #main,body.multi #bottom,body.multi #paper{display:none}
+body.multi #panes{display:grid}
+body.multi #top>*:not(.keep){display:none}
+body.multi #top .keep.grow{display:block}
+#layPop{position:fixed;z-index:30;background:#fff;color:#131722;border-radius:10px;box-shadow:0 8px 40px #0004;padding:6px 10px 10px;width:min(560px,96vw);max-height:84vh;overflow:auto;display:none}
+#layPop .lr{display:flex;align-items:center;gap:6px;border-bottom:1px solid #e0e3eb;padding:6px 0;flex-wrap:wrap}
+#layPop .n{width:22px;font-size:11px;color:#888;text-align:center;flex:none}
+#layPop .lb{width:42px;height:38px;padding:4px;border-radius:6px;display:grid;place-items:center;color:#777}
+#layPop .lb svg{width:32px;height:30px;stroke-width:1.3}
+#layPop .lb.sel{background:#2962ff;color:#fff}
+#layPop .sy{display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;padding-top:6px}
+#layPop .sy label{display:flex;align-items:center;gap:8px;padding:7px 8px;cursor:pointer;border-radius:6px;font-size:13px;text-transform:uppercase;letter-spacing:.3px}
+#layPop .sy label:hover{background:#f0f3fa}
+body.pane #top{padding:3px 6px}
+body.pane #top>*:not(#symbol):not(#tf):not(#ctype):not(#indBtn):not(#setBtn):not(.sep):not(.grow){display:none}
+body.pane #paper,body.pane #bottom,body.pane #quote{display:none}
+body.pane #legend{top:8px}
+body.pane.tight #side{display:none}
+body.pane #symbol{width:100px}
 </style>
 </head>
 <body>
 
 <div id="top">
+  <button id="layBtn" class="keep" title="Chart layout" aria-label="Chart layout"></button>
+  <span class="sep keep" style="display:block"></span>
   <input id="symbol" list="symbols" value="BTCUSDT" aria-label="Symbol">
   <datalist id="symbols"><option>BTCUSDT<option>ETHUSDT<option>SOLUSDT<option>BNBUSDT<option>XRPUSDT<option>ADAUSDT<option>DOGEUSDT<option>LINKUSDT<option>AVAXUSDT<option>LTCUSDT</datalist>
   <select id="tf" aria-label="Timeframe"><option>1m<option>5m<option>15m<option>30m<option>1h<option>4h<option value="1d" selected>D<option value="1w">W<option value="1M">M</select>
@@ -62,9 +89,9 @@ dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
   <span id="replayCtl" hidden><button id="rPlay">▶ Play</button><button id="rStep">Step ›</button><button id="rExit">Exit</button></span>
   <span class="sep"></span>
   <button id="undo" title="Undo">↶</button><button id="redo" title="Redo">↷</button>
-  <span class="grow"></span>
+  <span class="grow keep"></span>
   <button id="setBtn" title="Settings">⚙ Settings</button>
-  <button id="fsBtn" title="Fullscreen">⛶</button>
+  <button id="fsBtn" class="keep" title="Fullscreen">⛶</button>
   <button id="shotBtn" title="Save picture">📷</button>
 </div>
 
@@ -78,6 +105,8 @@ dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
   </div>
 </div>
 
+<div id="panes"></div>
+
 <div id="bottom"><span id="ranges"></span><button id="goDate" title="Go to date">📅</button><input type="date" id="dateIn" style="width:0;opacity:0;border:0"><span class="grow"></span><span id="clock"></span></div>
 
 <div id="paper">
@@ -90,6 +119,7 @@ dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 </div>
 
 <div id="toast"></div>
+<div id="layPop"></div>
 
 <dialog id="indDlg"><form method="dialog"><h3>Indicators</h3>
   <label>Moving average (SMA) <input type="checkbox" id="smaOn"></label><label>SMA length <input type="number" id="smaN" value="50" min="2"></label>
@@ -117,8 +147,11 @@ const $ = id => document.getElementById(id);
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem('cc_' + k)); return v ?? d; } catch { return d; } };
 const save = (k, v) => { try { localStorage.setItem('cc_' + k, JSON.stringify(v)); } catch {} };
 
+const PANE = (() => { const v = new URLSearchParams(location.search).get('pane'); return v == null ? null : Math.max(0, +v || 0); })();
+const CFGKEY = PANE ? 'cfg_p' + PANE : 'cfg';
+if (PANE != null) { document.body.classList.add('pane'); if (new URLSearchParams(location.search).get('tight')) document.body.classList.add('tight'); }
 const cfg = Object.assign({symbol:'BTCUSDT', tf:'1d', ctype:'candle', up:'#d6d6d6', dn:'#f29d38', grid:false, log:false, dark:false,
-  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false}, load('cfg', {}));
+  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
 const TFMS = {'1m':6e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'4h':144e5,'1d':864e5,'1w':6048e5,'1M':2592e6};
 const REST = ['https://data-api.binance.vision','https://api.binance.com'];
 const WS = 'wss://data-stream.binance.vision/stream?streams=';
@@ -183,7 +216,7 @@ function connect(g) {
       const k = m.k, bar = {t:k.t, o:+k.o, h:+k.h, l:+k.l, c:+k.c, v:+k.v}, last = data[data.length - 1];
       if (last.t === bar.t) data[data.length - 1] = bar;
       else if (bar.t > last.t) { data.push(bar); if (!replay && right >= data.length - 2) right++; }
-      checkAlerts(lastPrice[cfg.symbol], bar.c);
+      if (PANE == null) checkAlerts(lastPrice[cfg.symbol], bar.c);
       lastPrice[cfg.symbol] = bar.c;
       updatePaper(); render();
     } else if (m.b) { bid = +m.b; ask = +m.a; updateQuote(); }
@@ -279,6 +312,7 @@ function countdown() {
 }
 function paint() {
   queued = false;
+  if (W < AXW + 20 || H < AXH + 20) return;
   const fg = cfg.dark ? '#d1d4dc' : '#131722', bg = cfg.dark ? '#131722' : '#fff', edge = cfg.dark ? '#d1d4dc' : '#000';
   ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
   ctx.font = '12px -apple-system,sans-serif'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
@@ -567,11 +601,11 @@ $('side').onclick = e => {
 };
 
 /* ---------- top bar ---------- */
-const saveCfg = () => { save('cfg', cfg); render(); };
+const saveCfg = () => { save(CFGKEY, cfg); render(); };
 $('symbol').addEventListener('focus', e => e.target.select());
-$('symbol').addEventListener('change', e => { const s = e.target.value.replace(/[^a-z0-9]/gi,'').toUpperCase(); if (!s) { e.target.value = cfg.symbol; return; } cfg.symbol = e.target.value = s; saveCfg(); loadChart(); e.target.blur(); });
-$('tf').onchange = e => { cfg.tf = e.target.value; saveCfg(); loadChart(); };
-$('ctype').onchange = e => { cfg.ctype = e.target.value; saveCfg(); };
+$('symbol').addEventListener('change', e => { const s = e.target.value.replace(/[^a-z0-9]/gi,'').toUpperCase(); if (!s) { e.target.value = cfg.symbol; return; } cfg.symbol = e.target.value = s; saveCfg(); loadChart(); e.target.blur(); announce('symbol'); });
+$('tf').onchange = e => { cfg.tf = e.target.value; saveCfg(); loadChart(); announce('tf'); };
+$('ctype').onchange = e => { cfg.ctype = e.target.value; saveCfg(); announce('ctype'); };
 $('undo').onclick = () => step(undoS, redoS);
 $('redo').onclick = () => step(redoS, undoS);
 function bind(id, key) {
@@ -638,7 +672,7 @@ const RANGE = {'1D':['1m',1],'5D':['5m',5],'1M':['30m',30],'3M':['1h',91],'6M':[
 async function ensureFrom(t) { let guard = 0; while (data.length && data[0].t > t && !noMore && guard++ < 12) { const n = data.length; await loadOlder(); if (data.length === n) break; } }
 $('ranges').onclick = async e => {
   if (e.target.tagName !== 'BUTTON') return;
-  const key = e.target.textContent, [tf, days] = RANGE[key]; cfg.tf = tf; $('tf').value = tf; saveCfg();
+  const key = e.target.textContent, [tf, days] = RANGE[key]; cfg.tf = tf; $('tf').value = tf; saveCfg(); announce('tf');
   await loadChart(); const g = gen; if (!data.length) return;
   const from = key === 'YTD' ? Date.UTC(new Date().getUTCFullYear(),0,1) : Date.now() - days*864e5;
   await ensureFrom(from); if (g !== gen) return;
@@ -685,6 +719,93 @@ $('paperToggle').onclick = () => { $('paper').classList.toggle('open'); updatePa
 function updateQuote() {
   $('bid').textContent = bid ? fmt(bid) : '–'; $('ask').textContent = ask ? fmt(ask) : '–';
   $('spread').textContent = bid ? fmt(ask-bid, dec(bid)) : '';
+}
+
+/* ---------- chart layouts ---------- */
+function announce(what) { if (PANE != null && parent !== window) parent.postMessage({cc:'sync', what, symbol:cfg.symbol, tf:cfg.tf, ctype:cfg.ctype, from:PANE}, '*'); }
+window.addEventListener('message', e => {   // inside a pane: receive synced values
+  if (PANE == null || !e.data || e.data.cc !== 'apply') return;
+  const m = e.data;
+  if (m.what === 'symbol' && m.symbol !== cfg.symbol) { cfg.symbol = $('symbol').value = m.symbol; saveCfg(); loadChart(); }
+  if (m.what === 'tf' && m.tf !== cfg.tf) { cfg.tf = $('tf').value = m.tf; saveCfg(); loadChart(); }
+  if (m.what === 'ctype' && m.ctype !== cfg.ctype) { cfg.ctype = $('ctype').value = m.ctype; saveCfg(); }
+});
+if (PANE == null) {
+  // each layout: n panes, t = CSS grid-template-areas rows (same letter = same pane)
+  const LAYOUTS = [
+    {n:1,t:['a']},
+    {n:2,t:['a','b']}, {n:2,t:['ab']},
+    {n:3,t:['a','b','c']}, {n:3,t:['abc']}, {n:3,t:['ab','cc']}, {n:3,t:['aa','bc']}, {n:3,t:['ab','ac']}, {n:3,t:['ac','bc']},
+    {n:4,t:['ab','cd']}, {n:4,t:['abcd']}, {n:4,t:['a','b','c','d']}, {n:4,t:['aab','aac','aad']}, {n:4,t:['abb','cbb','dbb']}, {n:4,t:['aaa','bcd']}, {n:4,t:['abc','ddd']}, {n:4,t:['ab','cb','db']}, {n:4,t:['aa','bc','dd']},
+    {n:5,t:['abc','dee']}, {n:5,t:['abc','dbe']}, {n:5,t:['abcde']}, {n:5,t:['a','b','c','d','e']}, {n:5,t:['aabb','cdee']}, {n:5,t:['abb','acc','dee']}, {n:5,t:['abcd','eeee']}, {n:5,t:['aaaa','bcde']},
+    {n:6,t:['abc','def']}, {n:6,t:['ab','cd','ef']}, {n:6,t:['abcdef']}, {n:6,t:['a','b','c','d','e','f']}, {n:6,t:['aabc','aade','ffff']}, {n:6,t:['abcd','eeff']},
+    {n:7,t:['abcd','efgg']}, {n:7,t:['abc','def','ggg']}, {n:7,t:['abcdefg']}, {n:7,t:['a','b','c','d','e','f','g']},
+    {n:8,t:['abcd','efgh']}, {n:8,t:['ab','cd','ef','gh']}, {n:8,t:['abcdefgh']}, {n:8,t:['a','b','c','d','e','f','g','h']}
+  ];
+  const sync = Object.assign({symbol:false, tf:false, ctype:false}, load('laySync', {}));
+  let cur = Math.min(Math.max(0, load('layout', 0)), LAYOUTS.length - 1);
+
+  const icon = t => {   // draw the template as a tiny SVG: one rect per pane
+    const rows = t.length, cols = t[0].length, w = 28, h = 24, seen = {};
+    let out = '';
+    t.forEach((r, y) => [...r].forEach((ch, x) => { (seen[ch] = seen[ch] || {x0:x, x1:x, y0:y, y1:y}); const o = seen[ch]; o.x0 = Math.min(o.x0,x); o.x1 = Math.max(o.x1,x); o.y0 = Math.min(o.y0,y); o.y1 = Math.max(o.y1,y); }));
+    for (const k in seen) { const o = seen[k], cw = w/cols, ch = h/rows;
+      out += `<rect x="${2 + o.x0*cw + .5}" y="${3 + o.y0*ch + .5}" width="${(o.x1-o.x0+1)*cw - 1}" height="${(o.y1-o.y0+1)*ch - 1}" rx="1.5"/>`; }
+    return `<svg viewBox="0 0 32 30">${out}</svg>`;
+  };
+  $('layBtn').innerHTML = '';
+  const paintBtn = () => $('layBtn').innerHTML = icon(LAYOUTS[cur].t);
+  const frames = [];
+  function apply() {
+    const lay = LAYOUTS[cur], box = $('panes');
+    save('layout', cur); paintBtn();
+    if (lay.n === 1) { document.body.classList.remove('multi'); box.innerHTML = ''; frames.length = 0; setTimeout(() => window.dispatchEvent(new Event('resize')), 0); return; }
+    document.body.classList.add('multi');
+    box.style.gridTemplateAreas = lay.t.map(r => `"${[...r].join(' ')}"`).join(' ');
+    box.style.gridTemplateColumns = `repeat(${lay.t[0].length}, minmax(0,1fr))`;
+    box.style.gridTemplateRows = `repeat(${lay.t.length}, minmax(0,1fr))`;
+    while (frames.length > lay.n) frames.pop().remove();
+    while (frames.length < lay.n) {
+      const f = document.createElement('iframe'), i = frames.length;
+      f.dataset.i = i; f.title = 'Chart ' + (i + 1); f.allow = 'fullscreen';
+      f.src = `?pane=${i}` + (lay.n > 4 ? '&tight=1' : '');
+      box.append(f); frames.push(f);
+    }
+    frames.forEach((f, i) => f.style.gridArea = String.fromCharCode(97 + i));
+    if (lay.n > 4) frames.forEach(f => { try { f.contentDocument.body.classList.add('tight'); } catch {} }); else frames.forEach(f => { try { f.contentDocument.body.classList.remove('tight'); } catch {} });
+  }
+  window.addEventListener('message', e => {
+    const m = e.data; if (!m || m.cc !== 'sync' || !sync[m.what]) return;
+    frames.forEach((f, i) => { if (i !== m.from) f.contentWindow.postMessage({cc:'apply', what:m.what, symbol:m.symbol, tf:m.tf, ctype:m.ctype}, '*'); });
+  });
+  function buildPop() {
+    let html = '', n = 0;
+    LAYOUTS.forEach((l, i) => {
+      if (l.n !== n) { if (n) html += '</div>'; n = l.n; html += `<div class="lr"><span class="n">${n}</span>`; }
+      html += `<button class="lb${i === cur ? ' sel' : ''}" data-i="${i}" title="${n} chart${n > 1 ? 's' : ''}">${icon(l.t)}</button>`;
+    });
+    html += '</div><div class="sy">' + [['symbol','Sync all symbols'],['tf','Sync all intervals'],['ctype','Sync chart types']]
+      .map(([k, t]) => `<label><input type="checkbox" data-k="${k}"${sync[k] ? ' checked' : ''}>${t}</label>`).join('') + '</div>';
+    $('layPop').innerHTML = html;
+  }
+  $('layBtn').onclick = e => {
+    e.stopPropagation(); const pop = $('layPop');
+    if (pop.style.display === 'block') { pop.style.display = 'none'; return; }
+    buildPop(); const r = $('layBtn').getBoundingClientRect();
+    pop.style.left = Math.max(6, Math.min(r.left, innerWidth - pop.offsetWidth - 6)) + 'px'; pop.style.top = (r.bottom + 6) + 'px'; pop.style.display = 'block';
+    pop.style.left = Math.max(6, Math.min(r.left, innerWidth - pop.offsetWidth - 6)) + 'px';
+  };
+  $('layPop').onclick = e => {
+    e.stopPropagation();
+    const b = e.target.closest('.lb'); if (b) { cur = +b.dataset.i; apply(); $('layPop').style.display = 'none'; return; }
+    const c = e.target.closest('input[data-k]');
+    if (c) { sync[c.dataset.k] = c.checked; save('laySync', sync); }
+  };
+  document.addEventListener('click', () => { $('layPop').style.display = 'none'; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') $('layPop').style.display = 'none'; });
+  paintBtn(); if (cur) apply();
+} else {
+  $('layBtn').style.display = 'none';
 }
 
 /* ---------- start ---------- */
