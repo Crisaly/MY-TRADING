@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CRISALY Chart</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#131722;background:#eceef2;display:flex;flex-direction:column;height:100dvh}
+button,select,input{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;border-radius:6px;padding:6px 9px;white-space:nowrap}
+button:hover{background:#f0f3fa}
+button.on{background:#222;color:#fff}
+#top{display:flex;align-items:center;gap:4px;background:#fff;padding:6px 8px;overflow-x:auto;flex:none;border-bottom:3px solid #eceef2}
+#top select,#symbol{border:0;background:#f0f3fa;border-radius:18px;padding:7px 12px}
+#symbol{width:125px;font-weight:700;text-transform:uppercase}
+.sep{width:1px;height:22px;background:#e0e3eb;flex:none;margin:0 3px}
+.grow{flex:1}
+#main{flex:1;display:flex;min-height:0}
+#side{width:46px;background:#fff;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0;overflow-y:auto;flex:none;margin-right:3px;scrollbar-width:none}
+#side button{width:36px;height:34px;flex:none;padding:5px;display:grid;place-items:center}
+#side hr{width:30px;border:0;border-top:1px solid #e0e3eb;margin:3px;flex:none}
+svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+#wrap{flex:1;position:relative;background:#fff;min-width:0}
+#cv{position:absolute;inset:0;touch-action:none;cursor:crosshair}
+#quote{position:absolute;left:10px;top:8px;display:flex;align-items:center;gap:10px;font-size:12px}
+#quote button{color:#fff;border-radius:7px;padding:4px 14px;line-height:1.25;min-width:100px}
+#sell{background:#e0484d}#buy{background:#3562f6}
+#quote b{display:block;font-size:14px}
+#legend{position:absolute;left:10px;top:58px;font-size:12px;pointer-events:none;color:#555;line-height:1.6;right:90px}
+#msg{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);background:#222;color:#fff;padding:10px 16px;border-radius:8px;display:none;max-width:85%;text-align:center}
+#toast{position:fixed;right:16px;bottom:100px;background:#222;color:#fff;padding:12px 16px;border-radius:8px;display:none;z-index:20}
+#bottom{display:flex;align-items:center;gap:2px;background:#fff;padding:3px 8px;overflow-x:auto;flex:none;border-top:1px solid #e0e3eb;font-size:13px}
+#ranges{white-space:nowrap}#bottom>*{flex-shrink:0}#clock{white-space:nowrap;padding-left:10px}
+#paper{background:#fff;flex:none;border-top:3px solid #eceef2;padding:4px 10px;font-size:13px;max-height:36vh;overflow:auto}
+#paperBody{display:none;padding:6px 0}
+#paper.open #paperBody{display:block}
+#paper input{width:90px;border:1px solid #d1d4dc;border-radius:6px;padding:4px 7px}
+#paper table{width:100%;border-collapse:collapse;margin-top:8px}
+#paper td,#paper th{text-align:right;padding:4px 6px;border-bottom:1px solid #eee;white-space:nowrap}
+.up{color:#089981}.dn{color:#e0484d}
+dialog{margin:auto;border:0;border-radius:12px;padding:18px;box-shadow:0 12px 48px #0004;width:min(340px,92vw)}
+dialog h3{margin-bottom:12px}
+dialog label{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:9px 0}
+dialog input:not([type=checkbox]):not([type=color]){border:1px solid #d1d4dc;border-radius:6px;padding:6px 8px;width:140px}
+dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.pri{background:#222;color:#fff}.pri:hover{background:#444}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <input id="symbol" list="symbols" value="BTCUSDT" aria-label="Symbol">
+  <datalist id="symbols"><option>BTCUSDT<option>ETHUSDT<option>SOLUSDT<option>BNBUSDT<option>XRPUSDT<option>ADAUSDT<option>DOGEUSDT<option>LINKUSDT<option>AVAXUSDT<option>LTCUSDT</datalist>
+  <select id="tf" aria-label="Timeframe"><option>1m<option>5m<option>15m<option>30m<option>1h<option>4h<option value="1d" selected>D<option value="1w">W<option value="1M">M</select>
+  <select id="ctype" aria-label="Chart type"><option value="candle">Candles<option value="hollow">Hollow<option value="bars">Bars<option value="line">Line<option value="heikin">Heikin Ashi</select>
+  <span class="sep"></span>
+  <button id="indBtn">ƒx Indicators</button>
+  <button id="alertBtn">⏰ Alert</button>
+  <button id="replayBtn">⏪ Replay</button>
+  <span id="replayCtl" hidden><button id="rPlay">▶ Play</button><button id="rStep">Step ›</button><button id="rExit">Exit</button></span>
+  <span class="sep"></span>
+  <button id="undo" title="Undo">↶</button><button id="redo" title="Redo">↷</button>
+  <span class="grow"></span>
+  <button id="setBtn" title="Settings">⚙ Settings</button>
+  <button id="fsBtn" title="Fullscreen">⛶</button>
+  <button id="shotBtn" title="Save picture">📷</button>
+</div>
+
+<div id="main">
+  <div id="side"></div>
+  <div id="wrap">
+    <canvas id="cv"></canvas>
+    <div id="quote"><button id="sell"><b id="bid">–</b>SELL</button><span id="spread"></span><button id="buy"><b id="ask">–</b>BUY</button></div>
+    <div id="legend"></div>
+    <div id="msg"></div>
+  </div>
+</div>
+
+<div id="bottom"><span id="ranges"></span><button id="goDate" title="Go to date">📅</button><input type="date" id="dateIn" style="width:0;opacity:0;border:0"><span class="grow"></span><span id="clock"></span></div>
+
+<div id="paper">
+  <button id="paperToggle">Paper Trading ▾</button> <span id="paperSum"></span>
+  <div id="paperBody">
+    Quantity <input id="qty" type="number" value="0.01" min="0" step="any">
+    <button id="reset">Reset account</button>
+    <table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Now / Exit</th><th>P&amp;L</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<dialog id="indDlg"><form method="dialog"><h3>Indicators</h3>
+  <label>Moving average (SMA) <input type="checkbox" id="smaOn"></label><label>SMA length <input type="number" id="smaN" value="50" min="2"></label>
+  <label>Exponential average (EMA) <input type="checkbox" id="emaOn"></label><label>EMA length <input type="number" id="emaN" value="20" min="2"></label>
+  <label>Volume <input type="checkbox" id="volOn"></label>
+  <div class="row"><button class="pri">Done</button></div></form></dialog>
+
+<dialog id="alertDlg"><form method="dialog"><h3>Price alert</h3>
+  <label>Alert at price <input type="number" step="any" id="alertPrice"></label>
+  <div id="alertList"></div>
+  <small>Alerts only work while this page is open.</small>
+  <div class="row"><button value="cancel">Close</button><button class="pri" value="add">Add alert</button></div></form></dialog>
+
+<dialog id="setDlg"><form method="dialog"><h3>Settings</h3>
+  <label>Up candle <input type="color" id="cUp"></label>
+  <label>Down candle <input type="color" id="cDn"></label>
+  <label>Grid lines <input type="checkbox" id="grid"></label>
+  <label>Log price scale <input type="checkbox" id="logS"></label>
+  <label>Dark mode <input type="checkbox" id="dark"></label>
+  <div class="row"><button class="pri">Done</button></div></form></dialog>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem('cc_' + k)); return v ?? d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem('cc_' + k, JSON.stringify(v)); } catch {} };
+
+const cfg = Object.assign({symbol:'BTCUSDT', tf:'1d', ctype:'candle', up:'#d6d6d6', dn:'#f29d38', grid:false, log:false, dark:false,
+  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false}, load('cfg', {}));
+const TFMS = {'1m':6e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'4h':144e5,'1d':864e5,'1w':6048e5,'1M':2592e6};
+const REST = ['https://data-api.binance.vision','https://api.binance.com'];
+const WS = 'wss://data-stream.binance.vision/stream?streams=';
+
+let data = [], view = [], ws = null, gen = 0, retry = null;
+let barW = 18, right = 0, yAuto = true, yMin = 0, yMax = 1;   // right = bar index at the right edge
+let tool = 'cursor', draft = null, selected = null, hover = null, drag = null;
+let magnet = true, locked = false, hidden = false;
+let drawings = [], undoS = [], redoS = [];
+let alerts = load('alerts', []), trades = load('trades', []);
+let bid = null, ask = null, lastPrice = {};
+let replay = null, playTimer = null, loadingOld = false, noMore = false;
+
+const cv = $('cv'), ctx = cv.getContext('2d');
+let W = 0, H = 0;
+const AXW = 78, AXH = 28;
+const PW = () => W - AXW, PH = () => H - AXH;
+
+/* ---------- data ---------- */
+async function klines(sym, tf, extra = '') {
+  let err;
+  for (const base of REST) {
+    try {
+      const r = await fetch(`${base}/api/v3/klines?symbol=${sym}&interval=${tf}&limit=1000${extra}`);
+      if (!r.ok) throw new Error(r.status === 400 ? 'Unknown symbol' : 'Server error ' + r.status);
+      return (await r.json()).map(k => ({t:k[0], o:+k[1], h:+k[2], l:+k[3], c:+k[4], v:+k[5]}));
+    } catch (e) { err = e; if (e.message === 'Unknown symbol') break; }
+  }
+  throw err;
+}
+function message(text) { $('msg').textContent = text || ''; $('msg').style.display = text ? 'block' : 'none'; }
+function toast(text) { const t = $('toast'); t.textContent = text; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', 6000); }
+
+async function loadChart() {
+  const g = ++gen;
+  stopReplay(); clearTimeout(retry);
+  if (ws) { ws.onclose = null; ws.close(); ws = null; }
+  data = []; view = []; bid = ask = null; noMore = false; loadingOld = false; draft = selected = null;
+  drawings = load('draw_' + cfg.symbol, []); undoS = []; redoS = [];
+  updateQuote(); message('Loading ' + cfg.symbol + '…'); render();
+  try {
+    const d = await klines(cfg.symbol, cfg.tf);
+    if (g !== gen) return;
+    if (!d.length) throw new Error('No data');
+    data = d; view = data; message('');
+    barW = Math.max(6, Math.min(24, PW() / 70)); goLatest();
+    connect(g);
+  } catch (e) {
+    if (g !== gen) return;
+    message('Could not load ' + cfg.symbol + ': ' + e.message + '. Check the symbol and your connection.');
+  }
+}
+function goLatest() { right = view.length - 1 + Math.max(5, PW() / barW * .4); yAuto = true; render(); }
+
+function connect(g) {
+  const s = cfg.symbol.toLowerCase();
+  const sock = ws = new WebSocket(`${WS}${s}@kline_${cfg.tf}/${s}@bookTicker`);
+  sock.onmessage = ev => {
+    if (g !== gen) return;
+    const m = JSON.parse(ev.data).data;
+    if (m.k) {
+      const k = m.k, bar = {t:k.t, o:+k.o, h:+k.h, l:+k.l, c:+k.c, v:+k.v}, last = data[data.length - 1];
+      if (last.t === bar.t) data[data.length - 1] = bar;
+      else if (bar.t > last.t) { data.push(bar); if (!replay && right >= data.length - 2) right++; }
+      checkAlerts(lastPrice[cfg.symbol], bar.c);
+      lastPrice[cfg.symbol] = bar.c;
+      updatePaper(); render();
+    } else if (m.b) { bid = +m.b; ask = +m.a; updateQuote(); }
+  };
+  sock.onclose = () => { if (g === gen) retry = setTimeout(() => resync(g), 3000); };
+}
+async function resync(g) {            // refill any candles missed while disconnected
+  try {
+    const d = await klines(cfg.symbol, cfg.tf);
+    if (g !== gen) return;
+    const old = data.filter(x => x.t < d[0].t);
+    data = old.concat(d); if (!replay) view = data;
+    connect(g); render();
+  } catch { if (g === gen) retry = setTimeout(() => resync(g), 5000); }
+}
+async function loadOlder() {
+  if (loadingOld || noMore || replay || !data.length) return;
+  loadingOld = true; const g = gen;
+  try {
+    const d = await klines(cfg.symbol, cfg.tf, '&endTime=' + (data[0].t - 1));
+    if (g !== gen) return;
+    if (!d.length) noMore = true;
+    else { data = d.concat(data); view = data; right += d.length; if (drag && drag.right != null) drag.right += d.length; render(); }
+  } catch {}
+  if (g === gen) loadingOld = false;
+}
+
+/* ---------- coordinates ---------- */
+const X = i => PW() - (right - i) * barW;
+const I = x => right - (PW() - x) / barW;
+const tr = p => cfg.log ? Math.log(p) : p;
+const itr = v => cfg.log ? Math.exp(v) : v;
+const Y = p => (tr(yMax) - tr(p)) / (tr(yMax) - tr(yMin)) * PH();
+const P = y => itr(tr(yMax) - y / PH() * (tr(yMax) - tr(yMin)));
+function t2i(t) {
+  const n = view.length, step = TFMS[cfg.tf]; if (!n) return 0;
+  if (t >= view[n-1].t) return n - 1 + (t - view[n-1].t) / step;
+  if (t <= view[0].t) return (t - view[0].t) / step;
+  let a = 0, b = n - 1;
+  while (b - a > 1) { const m = (a + b) >> 1; view[m].t <= t ? a = m : b = m; }
+  return a + (t - view[a].t) / (view[b].t - view[a].t);
+}
+function i2t(i) {
+  const n = view.length, step = TFMS[cfg.tf]; if (!n) return 0;
+  if (i >= n - 1) return view[n-1].t + (i - n + 1) * step;
+  if (i <= 0) return view[0].t + i * step;
+  const a = Math.floor(i); return view[a].t + (i - a) * (view[a+1].t - view[a].t);
+}
+const sx = pt => X(t2i(pt.t)), sy = pt => Y(pt.p);
+function pointAt(x, y) {
+  let i = I(x), p = P(y);
+  if (magnet && view.length) {
+    i = Math.round(i); const c = view[i];
+    if (c) { const near = [c.o,c.h,c.l,c.c].reduce((a,b) => Math.abs(Y(b)-y) < Math.abs(Y(a)-y) ? b : a); if (Math.abs(Y(near)-y) < 18) p = near; }
+  }
+  return {t: i2t(i), p};
+}
+
+/* ---------- formatting ---------- */
+function dec(p) { return p >= 100 ? 2 : p >= 1 ? 4 : p >= .01 ? 5 : 8; }
+const fmt = (p, d = dec(Math.abs(p))) => p.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const pad = n => String(n).padStart(2, '0');
+const daily = () => TFMS[cfg.tf] >= 864e5;
+function dparts(t) {   // daily candles are dated in UTC (exchange day); intraday uses your local time
+  const d = new Date(t), u = daily() ? 'getUTC' : 'get';
+  return {y:d[u+'FullYear'](), m:d[u+'Month'](), d:d[u+'Date'](), h:d[u+'Hours'](), mi:d[u+'Minutes']()};
+}
+const fullDate = t => { const p = dparts(t); return `${p.d} ${MON[p.m]} ${p.y}` + (daily() ? '' : ` ${pad(p.h)}:${pad(p.mi)}`); };
+
+/* ---------- indicators ---------- */
+function sma(d, n) { let s = 0; return d.map((c,i) => { s += c.c; if (i >= n) s -= d[i-n].c; return i >= n-1 ? s/n : null; }); }
+function ema(d, n) { const k = 2/(n+1); let e; return d.map((c,i) => { e = i ? c.c*k + e*(1-k) : c.c; return i >= n-1 ? e : null; }); }
+function heikin(d) { let po, pc; return d.map((c,i) => { const hc = (c.o+c.h+c.l+c.c)/4, ho = i ? (po+pc)/2 : (c.o+c.c)/2; po = ho; pc = hc; return {t:c.t,o:ho,c:hc,h:Math.max(c.h,ho,hc),l:Math.min(c.l,ho,hc),v:c.v}; }); }
+
+/* ---------- drawing the chart ---------- */
+let queued = false;
+function render() { if (!queued) { queued = true; requestAnimationFrame(paint); } }
+function line(x1,y1,x2,y2) { ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+function tag(y, text, bg, sub) {
+  ctx.fillStyle = bg; ctx.fillRect(PW(), y - 10, AXW, sub ? 34 : 20);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(text, PW() + AXW/2, y);
+  if (sub) ctx.fillText(sub, PW() + AXW/2, y + 15);
+}
+function niceStep(raw) { const m = 10 ** Math.floor(Math.log10(raw)); return [1,2,2.5,5,10].map(x => x*m).find(x => x >= raw); }
+function countdown() {
+  const last = data[data.length-1]; if (!last || replay) return '';
+  let end = last.t + TFMS[cfg.tf];
+  if (cfg.tf === '1M') { const d = new Date(last.t); end = Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+1, 1); }
+  let s = Math.max(0, Math.floor((end - Date.now())/1000));
+  const days = Math.floor(s/86400); s %= 86400;
+  return (days ? days + 'd ' : '') + `${pad(Math.floor(s/3600))}:${pad(Math.floor(s%3600/60))}:${pad(s%60)}`;
+}
+function paint() {
+  queued = false;
+  const fg = cfg.dark ? '#d1d4dc' : '#131722', bg = cfg.dark ? '#131722' : '#fff', edge = cfg.dark ? '#d1d4dc' : '#000';
+  ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
+  ctx.font = '12px -apple-system,sans-serif'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
+  if (!view.length) { $('legend').textContent = ''; return; }
+  const shown = cfg.ctype === 'heikin' ? heikin(view) : view;
+  const first = Math.max(0, Math.floor(I(0))), last = Math.min(view.length-1, Math.ceil(right));
+  if (yAuto && last >= first) {
+    let lo = Infinity, hi = -Infinity;
+    for (let i = first; i <= last; i++) { lo = Math.min(lo, shown[i].l); hi = Math.max(hi, shown[i].h); }
+    const a = tr(lo), b = tr(hi), m = (b - a || a*.01) * .1;
+    yMin = itr(a - m); yMax = itr(b + m);
+  }
+  // price axis
+  const step = niceStep((yMax - yMin) / Math.max(2, PH()/60));
+  for (let p = Math.ceil(yMin/step)*step; p <= yMax; p += step) {
+    const y = Y(p);
+    if (cfg.grid) { ctx.strokeStyle = cfg.dark ? '#242a38' : '#eef0f4'; line(0,y,PW(),y); }
+    ctx.fillStyle = fg; ctx.textAlign = 'left'; ctx.fillText(fmt(p), PW()+8, y);
+  }
+  // time axis
+  const every = Math.max(1, Math.ceil(70/barW)); let prev = null;
+  for (let i = Math.ceil(I(0)/every)*every; i <= right; i += every) {
+    const p = dparts(i2t(i)), x = X(i); let label;
+    if (daily()) label = prev && prev.y !== p.y ? String(p.y) : (prev && prev.m !== p.m) ? MON[p.m] : String(p.d);
+    else label = prev && prev.d !== p.d ? `${p.d} ${MON[p.m]}` : `${pad(p.h)}:${pad(p.mi)}`;
+    if (cfg.tf === '1M') label = `${MON[p.m]} ${String(p.y).slice(2)}`;
+    prev = p;
+    if (cfg.grid) { ctx.strokeStyle = cfg.dark ? '#242a38' : '#eef0f4'; line(x,0,x,PH()); }
+    if (x < PW()-20) { ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.fillText(label, x, PH()+14); }
+  }
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,PW(),PH()); ctx.clip();
+  // volume
+  if (cfg.volOn) {
+    let mv = 0; for (let i = first; i <= last; i++) mv = Math.max(mv, view[i].v);
+    ctx.globalAlpha = .35;
+    for (let i = first; i <= last; i++) { const c = view[i], h = c.v/(mv||1)*PH()*.18; ctx.fillStyle = c.c >= c.o ? '#9aa0aa' : cfg.dn; ctx.fillRect(X(i)-barW*.35, PH()-h, barW*.7, h); }
+    ctx.globalAlpha = 1;
+  }
+  // candles
+  const bw = Math.max(1, Math.floor(barW*.72));
+  if (cfg.ctype === 'line') {
+    ctx.strokeStyle = '#3562f6'; ctx.lineWidth = 2; ctx.beginPath();
+    for (let i = first; i <= last; i++) i === first ? ctx.moveTo(X(i),Y(view[i].c)) : ctx.lineTo(X(i),Y(view[i].c));
+    ctx.stroke(); ctx.lineWidth = 1;
+  } else for (let i = first; i <= last; i++) {
+    const c = shown[i], x = Math.round(X(i))+.5, up = c.c >= c.o, col = up ? cfg.up : cfg.dn;
+    if (cfg.ctype === 'bars') { ctx.strokeStyle = up ? '#8a8f99' : cfg.dn; ctx.lineWidth = 1.5; line(x,Y(c.h),x,Y(c.l)); line(x-bw/2,Y(c.o),x,Y(c.o)); line(x,Y(c.c),x+bw/2,Y(c.c)); ctx.lineWidth = 1; continue; }
+    ctx.strokeStyle = edge; line(x,Y(c.h),x,Y(c.l));
+    const top = Y(Math.max(c.o,c.c)), h = Math.max(1, Y(Math.min(c.o,c.c)) - top);
+    ctx.fillStyle = cfg.ctype === 'hollow' && up ? bg : col;
+    ctx.fillRect(x-bw/2, top, bw, h); if (bw > 2) ctx.strokeRect(x-bw/2, top, bw, h);
+  }
+  for (const [on, fn, n, col] of [[cfg.smaOn,sma,cfg.smaN,'#2962ff'],[cfg.emaOn,ema,cfg.emaN,'#9c27b0']]) {
+    if (!on) continue;
+    const v = fn(view, n); ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath(); let pen = false;
+    for (let i = first; i <= last; i++) { if (v[i] == null) continue; pen ? ctx.lineTo(X(i),Y(v[i])) : ctx.moveTo(X(i),Y(v[i])); pen = true; }
+    ctx.stroke(); ctx.lineWidth = 1;
+  }
+  if (!hidden) drawings.forEach(d => drawShape(d, d === selected, fg));
+  if (draft) drawShape(draft, true, fg);
+  ctx.restore();
+
+  ctx.strokeStyle = cfg.dark ? '#2a2e39' : '#e0e3eb'; line(PW(),0,PW(),PH()); line(0,PH(),W,PH());
+  for (const a of alerts.filter(a => a.symbol === cfg.symbol)) {
+    ctx.setLineDash([6,4]); ctx.strokeStyle = '#7e57c2'; line(0,Y(a.price),PW(),Y(a.price)); ctx.setLineDash([]); tag(Y(a.price), fmt(a.price), '#7e57c2');
+  }
+  const lc = view[view.length-1], ly = Y(lc.c);
+  ctx.setLineDash([2,3]); ctx.strokeStyle = fg; line(0,ly,PW(),ly); ctx.setLineDash([]);
+  tag(ly, fmt(lc.c), cfg.dark ? '#555b69' : '#000', countdown());
+  if (hover && hover.x < PW() && hover.y < PH()) {
+    ctx.setLineDash([5,5]); ctx.strokeStyle = '#8b909c'; const hx = X(Math.round(I(hover.x)));
+    line(hx,0,hx,PH()); line(0,hover.y,PW(),hover.y); ctx.setLineDash([]);
+    tag(hover.y, fmt(P(hover.y)), '#434651');
+    const s = fullDate(i2t(Math.round(I(hover.x)))), w = ctx.measureText(s).width + 16;
+    ctx.fillStyle = '#434651'; ctx.fillRect(hx-w/2, PH()+3, w, 22); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(s, hx, PH()+14);
+  }
+  // legend
+  const hi = hover ? Math.round(I(hover.x)) : view.length-1, c = view[hi] || lc, ch = (c.c-c.o)/c.o*100;
+  $('legend').textContent = `${cfg.symbol} · ${$('tf').selectedOptions[0].text}  O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}  (${ch>=0?'+':''}${ch.toFixed(2)}%)`
+    + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '');
+}
+
+/* ---------- drawing tools ---------- */
+function position(d) {   // points: entry, target, stop (+ width from target point)
+  const [e, t, s] = d.pts, x1 = sx(e), x2 = Math.max(x1+20, sx(t));
+  return {e, t, s, x1, x2};
+}
+function drawShape(d, sel, fg) {
+  const q = d.pts.map(p => [sx(p), sy(p)]), [a, b = a] = q;
+  ctx.strokeStyle = '#2962ff'; ctx.fillStyle = '#2962ff'; ctx.lineWidth = 1.6; ctx.textAlign = 'left';
+  switch (d.type) {
+    case 'trend': line(...a, ...b); break;
+    case 'ray': { const dx = b[0]-a[0], dy = b[1]-a[1], k = 1e4/(Math.hypot(dx,dy)||1); line(a[0],a[1],a[0]+dx*k,a[1]+dy*k); break; }
+    case 'hline': line(0,a[1],PW(),a[1]); ctx.fillText(fmt(d.pts[0].p), 8, a[1]-9); break;
+    case 'hray': line(a[0],a[1],PW(),a[1]); ctx.fillText(fmt(d.pts[0].p), a[0]+6, a[1]-9); break;
+    case 'vline': line(a[0],0,a[0],PH()); break;
+    case 'rect': ctx.globalAlpha = .12; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = 1; ctx.strokeRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); break;
+    case 'fib': {
+      const x1 = Math.min(a[0],b[0]), x2 = Math.max(a[0],b[0]);
+      [0,.236,.382,.5,.618,.786,1].forEach(r => { const p = d.pts[1].p + (d.pts[0].p - d.pts[1].p)*r, y = Y(p); ctx.strokeStyle = r === .5 ? '#089981' : r === .618 ? '#f29d38' : '#787b86'; line(x1,y,x2,y); ctx.fillStyle = ctx.strokeStyle; ctx.fillText(`${r}  (${fmt(p)})`, x2+6, y); });
+      break; }
+    case 'path': case 'brush':
+      ctx.beginPath(); q.forEach((p,i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p)); ctx.stroke(); break;
+    case 'text': ctx.font = '15px -apple-system,sans-serif'; ctx.fillStyle = fg; ctx.fillText(d.text, ...a); ctx.font = '12px -apple-system,sans-serif'; break;
+    case 'measure': {
+      const dp = d.pts[1] ? d.pts[1].p - d.pts[0].p : 0, bars = Math.round(t2i((d.pts[1]||d.pts[0]).t) - t2i(d.pts[0].t));
+      ctx.fillStyle = dp >= 0 ? '#2962ff' : '#e0484d'; ctx.globalAlpha = .15; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = 1;
+      ctx.fillText(`${fmt(dp)} (${(dp/d.pts[0].p*100).toFixed(2)}%)  ${bars} bars`, Math.min(a[0],b[0]), b[1] + (dp >= 0 ? -12 : 12)); break; }
+    case 'long': case 'short': {
+      const {e,t,s,x1,x2} = position(d), ye = Y(e.p), yt = Y(t.p), ys = Y(s.p);
+      ctx.globalAlpha = .2; ctx.fillStyle = '#089981'; ctx.fillRect(x1,ye,x2-x1,yt-ye); ctx.fillStyle = '#e0484d'; ctx.fillRect(x1,ye,x2-x1,ys-ye); ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#787b86'; line(x1,ye,x2,ye);
+      const pc = p => (Math.abs(p-e.p)/e.p*100).toFixed(2) + '%';
+      ctx.fillStyle = fg;
+      ctx.fillText(`Target ${fmt(t.p)} (${pc(t.p)})`, x1+4, yt + (yt<ye?-9:9));
+      ctx.fillText(`Stop ${fmt(s.p)} (${pc(s.p)})`, x1+4, ys + (ys<ye?-9:9));
+      ctx.fillText(`${d.type.toUpperCase()}  R:R ${(Math.abs(t.p-e.p)/(Math.abs(s.p-e.p)||1)).toFixed(2)}`, x1+4, ye-9); break; }
+  }
+  if (sel && d.type !== 'brush') { ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2962ff'; handles(d).forEach(([x,y]) => { ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill(); ctx.stroke(); }); }
+  ctx.lineWidth = 1;
+}
+function handles(d) {
+  if (d.type === 'long' || d.type === 'short') { const {e,t,s,x1,x2} = position(d); return [[x1,Y(e.p)],[x2,Y(t.p)],[x1,Y(s.p)]]; }
+  return d.pts.map(p => [sx(p), sy(p)]);
+}
+function segDist(px,py,[x1,y1],[x2,y2]) { const dx=x2-x1, dy=y2-y1, k=Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/(dx*dx+dy*dy||1))); return Math.hypot(px-x1-k*dx, py-y1-k*dy); }
+function hit(d,x,y) {
+  const q = d.pts.map(p => [sx(p), sy(p)]), [a,b=a] = q, T = 8;
+  switch (d.type) {
+    case 'hline': return Math.abs(y-a[1]) < T;
+    case 'hray': return Math.abs(y-a[1]) < T && x >= a[0]-T;
+    case 'vline': return Math.abs(x-a[0]) < T;
+    case 'trend': return segDist(x,y,a,b) < T;
+    case 'ray': return segDist(x,y,a,[a[0]+(b[0]-a[0])*1000, a[1]+(b[1]-a[1])*1000]) < T;
+    case 'text': return x >= a[0] && x <= a[0]+d.text.length*9 && Math.abs(y-a[1]) < 12;
+    case 'path': case 'brush': return q.some((p,i) => i && segDist(x,y,q[i-1],p) < T);
+    case 'long': case 'short': { const p = position(d), ys = [Y(p.t.p),Y(p.s.p)]; return x >= p.x1 && x <= p.x2 && y >= Math.min(...ys) && y <= Math.max(...ys); }
+    default: return x >= Math.min(a[0],b[0])-T && x <= Math.max(a[0],b[0])+T && y >= Math.min(a[1],b[1])-T && y <= Math.max(a[1],b[1])+T;
+  }
+}
+const snap = () => JSON.stringify(drawings);
+function remember(before = snap()) { undoS.push(before); if (undoS.length > 100) undoS.shift(); redoS = []; }
+function persist() { save('draw_' + cfg.symbol, drawings); render(); }
+function addDrawing(d) { remember(); drawings.push(d); selected = d.type === 'brush' ? null : d; persist(); }
+function step(from, to) { if (!from.length) return; to.push(snap()); drawings = JSON.parse(from.pop()); selected = null; persist(); }
+function finishPath() { if (draft && draft.type === 'path') { draft.pts.pop(); if (draft.pts.length > 1) addDrawing(draft); draft = null; setTool('cursor'); } }
+
+/* ---------- mouse / touch ---------- */
+const pointers = new Map(); let pinch = null;
+const pos = e => { const r = cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; };
+const ONE = ['hline','hray','vline','text'];
+cv.addEventListener('pointerdown', e => {
+  if (e.button > 0 || !view.length) return;
+  cv.setPointerCapture(e.pointerId);
+  const m = pos(e); pointers.set(e.pointerId, m); hover = m;
+  if (pointers.size === 2) { const [a,b] = [...pointers.values()]; pinch = {d:Math.hypot(a.x-b.x,a.y-b.y)||1, w:barW}; drag = null; if (draft && draft.type === 'brush') draft = null; return; }
+  if (m.x > PW()) { drag = {mode:'yscale', y:m.y, a:tr(yMin), b:tr(yMax)}; yAuto = false; return; }
+  if (m.y > PH()) { drag = {mode:'xscale', x:m.x, w:barW}; return; }
+  if (replay && replay.picking) { startReplayAt(Math.round(I(m.x))); return; }
+  if (tool === 'cursor') {
+    if (selected && !locked && !hidden) {
+      const h = handles(selected).findIndex(([x,y]) => Math.hypot(x-m.x,y-m.y) < 12);
+      if (h >= 0) { drag = {mode:'handle', h, before:snap()}; return; }
+    }
+    selected = hidden ? null : [...drawings].reverse().find(d => hit(d,m.x,m.y)) || null;
+    if (selected && !locked) drag = {mode:'move', x:m.x, y:m.y, orig:selected.pts.map(p => ({i:t2i(p.t), y:Y(p.p)})), before:snap()};
+    else drag = {mode:'pan', x:m.x, y:m.y, right, a:tr(yMin), b:tr(yMax)};
+    render(); return;
+  }
+  if (tool === 'zoom') { drag = {mode:'zoom', x:m.x}; return; }
+  const p = pointAt(m.x, m.y);
+  if (hidden) { hidden = false; paintSide(); }
+  if (ONE.includes(tool)) {
+    const d = {type:tool, pts:[p]};
+    if (tool === 'text') { const s = prompt('Text:'); if (!s) { setTool('cursor'); return; } d.text = s; }
+    addDrawing(d); setTool('cursor');
+  } else if (tool === 'long' || tool === 'short') {
+    const dir = tool === 'long' ? 1 : -1, y = Y(p.p), t2 = i2t(I(m.x)+12);
+    addDrawing({type:tool, pts:[p, {t:t2, p:P(y - dir*100)}, {t:p.t, p:P(y + dir*50)}]}); setTool('cursor');
+  } else if (tool === 'brush') { draft = {type:'brush', pts:[{t:i2t(I(m.x)), p:P(m.y)}]}; drag = {mode:'brush'}; }
+  else if (tool === 'path') { if (!draft) draft = {type:'path', pts:[p, p]}; else draft.pts.push(p); render(); }
+  else if (draft) { draft.pts[1] = p; completeTwo(); }
+  else { draft = {type:tool, pts:[p, p]}; drag = {mode:'create', x:m.x, y:m.y}; render(); }
+});
+function completeTwo() { if (draft.type === 'measure') { drag = null; draft.done = true; setTool('cursor', true); } else { addDrawing(draft); draft = null; setTool('cursor'); } }
+cv.addEventListener('pointermove', e => {
+  const m = pos(e); hover = m;
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, m);
+  if (pinch && pointers.size === 2) { const [a,b] = [...pointers.values()]; barW = clampW(pinch.w * Math.hypot(a.x-b.x,a.y-b.y) / pinch.d); render(); return; }
+  if (draft && !draft.done && draft.type !== 'brush') draft.pts[draft.pts.length-1] = pointAt(m.x, m.y);
+  if (drag) {
+    if (drag.mode === 'pan') {
+      right = clampRight(drag.right - (m.x-drag.x)/barW);
+      if (!yAuto) { const k = (m.y-drag.y)/PH()*(drag.b-drag.a); yMin = itr(drag.a+k); yMax = itr(drag.b+k); }
+      if (I(0) < 30) loadOlder();
+    } else if (drag.mode === 'yscale') { const mid = (drag.a+drag.b)/2, half = (drag.b-drag.a)/2*Math.exp((m.y-drag.y)/250); const lo = itr(mid-half); if (cfg.log || lo > 0) { yMin = lo; yMax = itr(mid+half); } }
+    else if (drag.mode === 'xscale') barW = clampW(drag.w * Math.exp((m.x-drag.x)/200));
+    else if (drag.mode === 'brush') draft.pts.push({t:i2t(I(m.x)), p:P(m.y)});
+    else if (drag.mode === 'move') selected.pts = drag.orig.map(o => ({t:i2t(o.i + (m.x-drag.x)/barW), p:P(o.y + m.y-drag.y)}));
+    else if (drag.mode === 'handle') {
+      const p = pointAt(m.x, m.y), s = selected;
+      if (s.type === 'long' || s.type === 'short') {
+        const dir = s.type === 'long' ? 1 : -1, [en,tg,st] = s.pts;
+        if (drag.h === 0) { const d = t2i(p.t)-t2i(en.t); s.pts = [p, {t:i2t(t2i(tg.t)+d), p:tg.p+p.p-en.p}, {t:p.t, p:st.p+p.p-en.p}]; }
+        else if (drag.h === 1) { tg.t = p.t; if ((p.p-en.p)*dir > 0) tg.p = p.p; }
+        else if ((p.p-en.p)*dir < 0) st.p = p.p;
+      } else s.pts[drag.h] = p;
+    }
+  }
+  cv.style.cursor = m.x > PW() ? 'ns-resize' : m.y > PH() ? 'ew-resize' : 'crosshair';
+  render();
+});
+function endPointer(e) {
+  pointers.delete(e.pointerId); if (pointers.size < 2) pinch = null;
+  const m = pos(e);
+  if (drag) {
+    if (drag.mode === 'brush' && draft) { if (draft.pts.length > 1) addDrawing(draft); draft = null; setTool('cursor'); }
+    else if (drag.mode === 'create' && draft && Math.hypot(m.x-drag.x, m.y-drag.y) > 8) completeTwo();
+    else if ((drag.mode === 'move' || drag.mode === 'handle') && snap() !== drag.before) { remember(drag.before); persist(); }
+    else if (drag.mode === 'zoom') { const a = I(Math.min(drag.x,m.x)), b = I(Math.max(drag.x,m.x)); if (b-a > 2) { barW = clampW(PW()/(b-a)); right = b; yAuto = true; } setTool('cursor'); }
+    drag = null; render();
+  }
+}
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', endPointer);
+cv.addEventListener('pointerleave', () => { if (!drag) { hover = null; render(); } });
+cv.addEventListener('dblclick', e => { const m = pos(e); if (draft && draft.type === 'path') finishPath(); else if (m.x > PW()) { yAuto = true; render(); } else if (m.y > PH()) goLatest(); });
+const clampW = w => Math.max(1.2, Math.min(80, w));
+const clampRight = r => Math.max(5, Math.min(view.length - 1 + PW()/barW - 5, r));
+cv.addEventListener('wheel', e => {
+  e.preventDefault(); if (!view.length) return;
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) right = clampRight(right + e.deltaX/barW);
+  else barW = clampW(barW * Math.exp(-e.deltaY * .0025));
+  if (I(0) < 30) loadOlder(); render();
+}, {passive:false});
+addEventListener('keydown', e => {
+  if (/INPUT|SELECT/.test(e.target.tagName) || document.querySelector('dialog[open]')) return;
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? step(redoS,undoS) : step(undoS,redoS); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !locked) { e.preventDefault(); remember(); drawings = drawings.filter(d => d !== selected); selected = null; persist(); }
+  else if (e.key === 'Enter') finishPath();
+  else if (e.key === 'Escape') { draft = null; selected = null; setTool('cursor'); }
+});
+
+/* ---------- left toolbar ---------- */
+const ic = p => `<svg viewBox="0 0 24 24">${p}</svg>`;
+const TOOLS = [
+  ['cursor','Cursor','<path d="M12 3v18M3 12h18"/>'],
+  ['trend','Trend line','<path d="M5 19L19 5"/><circle cx="4" cy="20" r="1.5"/><circle cx="20" cy="4" r="1.5"/>'],
+  ['ray','Ray','<path d="M5 18L22 4"/><circle cx="4" cy="19" r="1.5"/>'],
+  ['hline','Horizontal line','<path d="M2 12h20"/><circle cx="12" cy="12" r="2"/>'],
+  ['hray','Horizontal ray','<path d="M6 12h16"/><circle cx="4" cy="12" r="2"/>'],
+  ['vline','Vertical line','<path d="M12 2v20"/><circle cx="12" cy="12" r="2"/>'],
+  ['fib','Fib retracement','<path d="M3 5h18M3 10h18M3 14h18M3 19h18"/>'],
+  ['rect','Rectangle','<rect x="4" y="6" width="16" height="12"/>'],
+  ['path','Path (double-click or Enter to finish)','<path d="M3 18l6-8 5 5 7-10M16 5h5v5"/>'],
+  ['long','Long position','<path d="M3 5h18M3 19h18M3 13h18M10 7v4h4"/>'],
+  ['short','Short position','<path d="M3 5h18M3 19h18M3 11h18M14 13h-4v2h4v2h-4"/>'],
+  ['brush','Brush','<path d="M4 20c5 0 3-5 7-5M10 14L20 4"/>'],
+  ['text','Text','<path d="M5 6V4h14v2M12 4v16M9 20h6"/>'],
+  null,
+  ['measure','Measure','<path d="M3 16L16 3l5 5L8 21zM8 11l2 2M11 8l2 2M14 5l2 2"/>'],
+  ['zoom','Zoom (drag across)','<circle cx="10" cy="10" r="6"/><path d="M15 15l5 5M7 10h6M10 7v6"/>'],
+  null,
+  ['@magnet','Magnet','<path d="M6 4v8a6 6 0 0012 0V4h-4v8a2 2 0 01-4 0V4zM6 8h4M14 8h4"/>'],
+  ['@lock','Lock drawings','<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/>'],
+  ['@hide','Hide drawings','<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>'],
+  ['@trash','Delete selected (or all)','<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>']
+];
+$('side').innerHTML = TOOLS.map(t => t ? `<button data-t="${t[0]}" title="${t[1]}" aria-label="${t[1]}">${ic(t[2])}</button>` : '<hr>').join('');
+function paintSide() {
+  document.querySelectorAll('#side button').forEach(b => { const t = b.dataset.t; b.classList.toggle('on', t === tool || (t==='@magnet'&&magnet) || (t==='@lock'&&locked) || (t==='@hide'&&hidden)); });
+}
+function setTool(t, keepDraft) { tool = t; if (!keepDraft) draft = null; paintSide(); render(); }
+$('side').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return; const t = b.dataset.t;
+  if (t === '@magnet') magnet = !magnet;
+  else if (t === '@lock') locked = !locked;
+  else if (t === '@hide') { hidden = !hidden; selected = null; }
+  else if (t === '@trash') {
+    if (locked) return toast('Unlock drawings first');
+    if (selected) { remember(); drawings = drawings.filter(d => d !== selected); selected = null; persist(); }
+    else if (drawings.length && confirm('Delete all drawings on ' + cfg.symbol + '?')) { remember(); drawings = []; persist(); }
+    draft = null;
+  } else { selected = null; setTool(t); return; }
+  paintSide(); render();
+};
+
+/* ---------- top bar ---------- */
+const saveCfg = () => { save('cfg', cfg); render(); };
+$('symbol').addEventListener('focus', e => e.target.select());
+$('symbol').addEventListener('change', e => { const s = e.target.value.replace(/[^a-z0-9]/gi,'').toUpperCase(); if (!s) { e.target.value = cfg.symbol; return; } cfg.symbol = e.target.value = s; saveCfg(); loadChart(); e.target.blur(); });
+$('tf').onchange = e => { cfg.tf = e.target.value; saveCfg(); loadChart(); };
+$('ctype').onchange = e => { cfg.ctype = e.target.value; saveCfg(); };
+$('undo').onclick = () => step(undoS, redoS);
+$('redo').onclick = () => step(redoS, undoS);
+function bind(id, key) {
+  const el = $(id), isC = el.type === 'checkbox';
+  el[isC ? 'checked' : 'value'] = cfg[key];
+  el.oninput = () => { cfg[key] = isC ? el.checked : el.type === 'number' ? Math.max(2, Math.round(+el.value) || 2) : el.value; if (key === 'log') yAuto = true; theme(); saveCfg(); };
+}
+[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark']].forEach(a => bind(...a));
+function theme() {
+  let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
+  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}' : '';
+}
+$('indBtn').onclick = () => $('indDlg').showModal();
+$('setBtn').onclick = () => $('setDlg').showModal();
+$('fsBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
+$('shotBtn').onclick = () => { const a = document.createElement('a'); a.download = `${cfg.symbol}_${cfg.tf}.png`; a.href = cv.toDataURL('image/png'); a.click(); };
+
+/* ---------- alerts ---------- */
+function listAlerts() {
+  const box = $('alertList'); box.textContent = '';
+  alerts.filter(a => a.symbol === cfg.symbol).forEach(a => {
+    const l = document.createElement('label'), b = document.createElement('button');
+    l.textContent = fmt(a.price); b.textContent = 'Remove'; b.type = 'button';
+    b.onclick = () => { alerts = alerts.filter(x => x !== a); save('alerts', alerts); listAlerts(); render(); };
+    l.append(b); box.append(l);
+  });
+}
+$('alertBtn').onclick = () => { $('alertPrice').value = data.length ? data[data.length-1].c : ''; $('alertDlg').returnValue = ''; listAlerts(); $('alertDlg').showModal(); };
+$('alertDlg').addEventListener('close', () => {
+  const p = +$('alertPrice').value;
+  if ($('alertDlg').returnValue !== 'add' || !(p > 0)) return;
+  alerts.push({symbol:cfg.symbol, price:p}); save('alerts', alerts); render(); toast('Alert set at ' + fmt(p));
+  if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+});
+function checkAlerts(prev, now) {
+  if (prev == null) return;
+  const fired = alerts.filter(a => a.symbol === cfg.symbol && (prev - a.price) * (now - a.price) <= 0 && prev !== now);
+  if (!fired.length) return;
+  alerts = alerts.filter(a => !fired.includes(a)); save('alerts', alerts);
+  fired.forEach(a => { const s = `${a.symbol} reached ${fmt(a.price)}`; toast('⏰ ' + s); try { if (Notification.permission === 'granted') new Notification(s); } catch {} beep(); });
+}
+function beep() { try { const a = new AudioContext(), o = a.createOscillator(); o.connect(a.destination); o.frequency.value = 880; o.start(); o.stop(a.currentTime+.35); o.onended = () => a.close(); } catch {} }
+
+/* ---------- replay ---------- */
+$('replayBtn').onclick = () => { if (replay || !data.length) return; replay = {picking:true}; setTool('cursor'); toast('Tap a candle to start the replay from there'); };
+function startReplayAt(i) {
+  i = Math.max(1, Math.min(data.length-2, i));
+  replay = {all:data.slice(), n:i+1}; view = replay.all.slice(0, replay.n); $('replayCtl').hidden = false; right = i + PW()/barW*.3; yAuto = true; render();
+}
+function replayStep() {
+  if (!replay || replay.picking) return;
+  if (replay.n >= replay.all.length) return pause();
+  view.push(replay.all[replay.n++]); right++; render();
+}
+function pause() { clearInterval(playTimer); playTimer = null; $('rPlay').textContent = '▶ Play'; }
+function stopReplay() { pause(); const was = replay; replay = null; $('replayCtl').hidden = true; view = data; if (was && data.length) goLatest(); }
+$('rPlay').onclick = () => { if (playTimer) pause(); else { playTimer = setInterval(replayStep, 600); $('rPlay').textContent = '❚❚ Pause'; } };
+$('rStep').onclick = replayStep;
+$('rExit').onclick = stopReplay;
+
+/* ---------- ranges ---------- */
+$('ranges').innerHTML = ['1D','5D','1M','3M','6M','YTD','1Y','5Y','All'].map(r => `<button>${r}</button>`).join('');
+const RANGE = {'1D':['1m',1],'5D':['5m',5],'1M':['30m',30],'3M':['1h',91],'6M':['4h',182],'YTD':['1d',0],'1Y':['1d',365],'5Y':['1w',1826],'All':['1w',1e5]};
+async function ensureFrom(t) { let guard = 0; while (data.length && data[0].t > t && !noMore && guard++ < 12) { const n = data.length; await loadOlder(); if (data.length === n) break; } }
+$('ranges').onclick = async e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  const key = e.target.textContent, [tf, days] = RANGE[key]; cfg.tf = tf; $('tf').value = tf; saveCfg();
+  await loadChart(); const g = gen; if (!data.length) return;
+  const from = key === 'YTD' ? Date.UTC(new Date().getUTCFullYear(),0,1) : Date.now() - days*864e5;
+  await ensureFrom(from); if (g !== gen) return;
+  const i = Math.max(0, t2i(from)), n = view.length - i;
+  barW = clampW(PW() / (n*1.04)); right = view.length - 1 + n*.03; yAuto = true; render();
+};
+$('goDate').onclick = () => { const d = $('dateIn'); d.showPicker ? d.showPicker() : d.click(); };
+$('dateIn').onchange = async e => {
+  if (!e.target.value || replay) return; const t = Date.parse(e.target.value), g = gen;
+  await ensureFrom(t); if (g !== gen) return;
+  right = clampRight(t2i(t) + PW()/barW/2); yAuto = true; render();
+};
+
+/* ---------- paper trading (practice only, no real orders) ---------- */
+const pnl = (t, price) => (price - t.entry) * t.qty * (t.side === 'BUY' ? 1 : -1);
+function order(side) {
+  const qty = +$('qty').value, price = side === 'BUY' ? ask : bid;
+  if (!(qty > 0)) return toast('Enter a quantity');
+  if (!price) return toast('Waiting for a live price');
+  if (replay) return toast('Exit replay to place a practice trade');
+  trades.unshift({id:Date.now(), symbol:cfg.symbol, side, qty, entry:price, exit:null});
+  save('trades', trades); updatePaper(true); toast(`Practice ${side} ${qty} ${cfg.symbol} @ ${fmt(price)}`);
+}
+function updatePaper(rebuild) {
+  let open = 0, closed = 0;
+  trades.forEach(t => t.exit == null ? open += lastPrice[t.symbol] ? pnl(t,lastPrice[t.symbol]) : 0 : closed += pnl(t,t.exit));
+  $('paperSum').textContent = `Open P&L: ${open.toFixed(2)}  ·  Closed P&L: ${closed.toFixed(2)}`;
+  if (!$('paper').classList.contains('open') && !rebuild) return;
+  $('rows').innerHTML = trades.map(t => {
+    const now = t.exit ?? lastPrice[t.symbol], v = now ? pnl(t,now) : null;
+    return `<tr><td>${t.symbol.replace(/[^A-Z0-9]/g,'')}</td><td>${t.side === 'BUY' ? 'BUY' : 'SELL'}</td><td>${+t.qty}</td><td>${fmt(+t.entry)}</td><td>${now ? fmt(+now) : '–'}</td><td class="${v>=0?'up':'dn'}">${v == null ? '–' : v.toFixed(2)}</td><td>${t.exit != null ? 'Closed' : t.symbol === cfg.symbol ? `<button data-id="${+t.id}">Close</button>` : 'Open'}</td></tr>`;
+  }).join('');
+}
+$('rows').addEventListener('pointerdown', e => {   // pointerdown: rows refresh with every price tick
+  const id = +e.target.dataset?.id; if (!id) return;
+  const t = trades.find(x => x.id === id), price = t.side === 'BUY' ? bid : ask;
+  if (!price) return toast('Waiting for a live price');
+  t.exit = price; save('trades', trades); updatePaper(true);
+});
+$('buy').onclick = () => order('BUY');
+$('sell').onclick = () => order('SELL');
+$('reset').onclick = () => { if (confirm('Clear all practice trades?')) { trades = []; save('trades', trades); updatePaper(true); } };
+$('paperToggle').onclick = () => { $('paper').classList.toggle('open'); updatePaper(true); };
+function updateQuote() {
+  $('bid').textContent = bid ? fmt(bid) : '–'; $('ask').textContent = ask ? fmt(ask) : '–';
+  $('spread').textContent = bid ? fmt(ask-bid, dec(bid)) : '';
+}
+
+/* ---------- start ---------- */
+new ResizeObserver(() => {
+  const r = $('wrap').getBoundingClientRect(), k = devicePixelRatio || 1, oldPW = PW();
+  if (view.length && oldPW > 0 && r.width > AXW) { const gap = right - (view.length-1); if (gap > 0) right -= gap * (1 - (r.width-AXW)/oldPW); }
+  W = r.width; H = r.height; cv.width = W*k; cv.height = H*k; cv.style.width = W+'px'; cv.style.height = H+'px';
+  ctx.setTransform(k,0,0,k,0,0); render();
+}).observe($('wrap'));
+setInterval(() => {
+  const d = new Date(), off = -d.getTimezoneOffset()/60;
+  $('clock').textContent = `${d.toLocaleTimeString('en-GB')} UTC${off >= 0 ? '+' : ''}${off}`;
+  render();
+}, 1000);
+$('symbol').value = cfg.symbol; $('tf').value = cfg.tf; $('ctype').value = cfg.ctype;
+theme(); paintSide(); updatePaper();
+W = $('wrap').clientWidth; H = $('wrap').clientHeight;
+loadChart();
+</script>
+</body>
+</html>
