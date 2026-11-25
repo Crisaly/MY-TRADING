@@ -47,6 +47,16 @@ dialog input:not([type=checkbox]):not([type=color]){border:1px solid #d1d4dc;bor
 dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .pri{background:#222;color:#fff}.pri:hover{background:#444}
 
+/* drawing settings bar */
+#drawBar{position:absolute;z-index:6;display:flex;align-items:center;gap:2px;background:#fff;border:1px solid #e0e3eb;border-radius:10px;box-shadow:0 4px 18px #0003;padding:4px 6px;white-space:nowrap;max-width:calc(100% - 12px);overflow-x:auto}
+#drawBar[hidden]{display:none}
+#drawBar select{border:0;background:#f0f3fa;border-radius:6px;padding:5px 4px}
+#drawBar input[type=color]{width:30px;height:30px;border:0;padding:2px;background:none;cursor:pointer;border-radius:6px}
+#drawBar input[type=range]{width:70px;vertical-align:middle}
+#drawBar label{font-size:12px;display:flex;align-items:center;gap:4px;padding:0 4px}
+#drawBar button{padding:5px 8px;font-size:15px}
+#drawBar .sp{width:1px;height:20px;background:#e0e3eb;margin:0 3px;flex:none}
+#drawBar [hidden]{display:none!important}
 /* layouts */
 #layBtn{display:flex;align-items:center;gap:6px}
 #layBtn svg{width:20px;height:20px}
@@ -102,6 +112,19 @@ body.pane #symbol{width:100px}
     <div id="quote"><button id="sell"><b id="bid">–</b>SELL</button><span id="spread"></span><button id="buy"><b id="ask">–</b>BUY</button></div>
     <div id="legend"></div>
     <div id="msg"></div>
+    <div id="drawBar" hidden>
+      <input type="color" id="dbColor" title="Color">
+      <label id="dbFillL" title="Fill opacity">Fill <input type="range" id="dbFill" min="0" max="80" value="12"></label>
+      <span class="sp"></span>
+      <select id="dbW" title="Line thickness"><option value="1">1px<option value="1.6">2px<option value="2.5">3px<option value="3.5">4px<option value="5">5px<option value="7">7px</select>
+      <select id="dbDash" title="Line style"><option value="solid">&#9473; Solid<option value="dashed">&#9548; Dashed<option value="dotted">&#9479; Dotted</select>
+      <select id="dbSize" title="Text size"><option>12<option>15<option>18<option>24<option>32<option>48</select>
+      <button id="dbEdit" title="Edit text">Aa</button>
+      <span class="sp"></span>
+      <button id="dbClone" title="Clone">&#10697;</button>
+      <button id="dbLock" title="Lock this drawing">&#128275;</button>
+      <button id="dbDel" title="Delete">&#128465;</button>
+    </div>
   </div>
 </div>
 
@@ -312,11 +335,11 @@ function countdown() {
 }
 function paint() {
   queued = false;
-  if (W < AXW + 20 || H < AXH + 20) return;
+  if (W < AXW + 20 || H < AXH + 20) { DB.hidden = true; return; }
   const fg = cfg.dark ? '#d1d4dc' : '#131722', bg = cfg.dark ? '#131722' : '#fff', edge = cfg.dark ? '#d1d4dc' : '#000';
   ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
   ctx.font = '12px -apple-system,sans-serif'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
-  if (!view.length) { $('legend').textContent = ''; return; }
+  if (!view.length) { $('legend').textContent = ''; DB.hidden = true; return; }
   const shown = cfg.ctype === 'heikin' ? heikin(view) : view;
   const first = Math.max(0, Math.floor(I(0))), last = Math.min(view.length-1, Math.ceil(right));
   if (yAuto && last >= first) {
@@ -393,6 +416,7 @@ function paint() {
   const hi = hover ? Math.round(I(hover.x)) : view.length-1, c = view[hi] || lc, ch = (c.c-c.o)/c.o*100;
   $('legend').textContent = `${cfg.symbol} · ${$('tf').selectedOptions[0].text}  O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}  (${ch>=0?'+':''}${ch.toFixed(2)}%)`
     + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '');
+  updateDrawBar();
 }
 
 /* ---------- drawing tools ---------- */
@@ -402,21 +426,23 @@ function position(d) {   // points: entry, target, stop (+ width from target poi
 }
 function drawShape(d, sel, fg) {
   const q = d.pts.map(p => [sx(p), sy(p)]), [a, b = a] = q;
-  ctx.strokeStyle = '#2962ff'; ctx.fillStyle = '#2962ff'; ctx.lineWidth = 1.6; ctx.textAlign = 'left';
+  const col = d.color || '#2962ff';
+  ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = d.w || 1.6; ctx.textAlign = 'left';
+  ctx.setLineDash(d.dash === 'dashed' ? [9,6] : d.dash === 'dotted' ? [2,5] : []);
   switch (d.type) {
     case 'trend': line(...a, ...b); break;
     case 'ray': { const dx = b[0]-a[0], dy = b[1]-a[1], k = 1e4/(Math.hypot(dx,dy)||1); line(a[0],a[1],a[0]+dx*k,a[1]+dy*k); break; }
     case 'hline': line(0,a[1],PW(),a[1]); ctx.fillText(fmt(d.pts[0].p), 8, a[1]-9); break;
     case 'hray': line(a[0],a[1],PW(),a[1]); ctx.fillText(fmt(d.pts[0].p), a[0]+6, a[1]-9); break;
     case 'vline': line(a[0],0,a[0],PH()); break;
-    case 'rect': ctx.globalAlpha = .12; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = 1; ctx.strokeRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); break;
+    case 'rect': ctx.globalAlpha = d.fill ?? .12; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = 1; ctx.strokeRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); break;
     case 'fib': {
       const x1 = Math.min(a[0],b[0]), x2 = Math.max(a[0],b[0]);
       [0,.236,.382,.5,.618,.786,1].forEach(r => { const p = d.pts[1].p + (d.pts[0].p - d.pts[1].p)*r, y = Y(p); ctx.strokeStyle = r === .5 ? '#089981' : r === .618 ? '#f29d38' : '#787b86'; line(x1,y,x2,y); ctx.fillStyle = ctx.strokeStyle; ctx.fillText(`${r}  (${fmt(p)})`, x2+6, y); });
       break; }
     case 'path': case 'brush':
       ctx.beginPath(); q.forEach((p,i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p)); ctx.stroke(); break;
-    case 'text': ctx.font = '15px -apple-system,sans-serif'; ctx.fillStyle = fg; ctx.fillText(d.text, ...a); ctx.font = '12px -apple-system,sans-serif'; break;
+    case 'text': ctx.font = (d.size || 15) + 'px -apple-system,sans-serif'; ctx.fillStyle = d.color || fg; ctx.fillText(d.text, ...a); ctx.font = '12px -apple-system,sans-serif'; break;
     case 'measure': {
       const dp = d.pts[1] ? d.pts[1].p - d.pts[0].p : 0, bars = Math.round(t2i((d.pts[1]||d.pts[0]).t) - t2i(d.pts[0].t));
       ctx.fillStyle = dp >= 0 ? '#2962ff' : '#e0484d'; ctx.globalAlpha = .15; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = 1;
@@ -431,6 +457,7 @@ function drawShape(d, sel, fg) {
       ctx.fillText(`Stop ${fmt(s.p)} (${pc(s.p)})`, x1+4, ys + (ys<ye?-9:9));
       ctx.fillText(`${d.type.toUpperCase()}  R:R ${(Math.abs(t.p-e.p)/(Math.abs(s.p-e.p)||1)).toFixed(2)}`, x1+4, ye-9); break; }
   }
+  ctx.setLineDash([]);
   if (sel && d.type !== 'brush') { ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2962ff'; handles(d).forEach(([x,y]) => { ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill(); ctx.stroke(); }); }
   ctx.lineWidth = 1;
 }
@@ -456,7 +483,8 @@ function hit(d,x,y) {
 const snap = () => JSON.stringify(drawings);
 function remember(before = snap()) { undoS.push(before); if (undoS.length > 100) undoS.shift(); redoS = []; }
 function persist() { save('draw_' + cfg.symbol, drawings); render(); }
-function addDrawing(d) { remember(); drawings.push(d); selected = d.type === 'brush' ? null : d; persist(); }
+let dstyle = load('dstyle', {});
+function addDrawing(d) { remember(); if (!['text','fib','long','short','measure'].includes(d.type)) Object.assign(d, dstyle); drawings.push(d); selected = d.type === 'brush' ? null : d; persist(); }
 function step(from, to) { if (!from.length) return; to.push(snap()); drawings = JSON.parse(from.pop()); selected = null; persist(); }
 function finishPath() { if (draft && draft.type === 'path') { draft.pts.pop(); if (draft.pts.length > 1) addDrawing(draft); draft = null; setTool('cursor'); } }
 
@@ -473,12 +501,12 @@ cv.addEventListener('pointerdown', e => {
   if (m.y > PH()) { drag = {mode:'xscale', x:m.x, w:barW}; return; }
   if (replay && replay.picking) { startReplayAt(Math.round(I(m.x))); return; }
   if (tool === 'cursor') {
-    if (selected && !locked && !hidden) {
+    if (selected && !locked && !selected.lock && !hidden) {
       const h = handles(selected).findIndex(([x,y]) => Math.hypot(x-m.x,y-m.y) < 12);
       if (h >= 0) { drag = {mode:'handle', h, before:snap()}; return; }
     }
     selected = hidden ? null : [...drawings].reverse().find(d => hit(d,m.x,m.y)) || null;
-    if (selected && !locked) drag = {mode:'move', x:m.x, y:m.y, orig:selected.pts.map(p => ({i:t2i(p.t), y:Y(p.p)})), before:snap()};
+    if (selected && !locked && !selected.lock) drag = {mode:'move', x:m.x, y:m.y, orig:selected.pts.map(p => ({i:t2i(p.t), y:Y(p.p)})), before:snap()};
     else drag = {mode:'pan', x:m.x, y:m.y, right, a:tr(yMin), b:tr(yMax)};
     render(); return;
   }
@@ -551,7 +579,7 @@ cv.addEventListener('wheel', e => {
 addEventListener('keydown', e => {
   if (/INPUT|SELECT/.test(e.target.tagName) || document.querySelector('dialog[open]')) return;
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? step(redoS,undoS) : step(undoS,redoS); }
-  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !locked) { e.preventDefault(); remember(); drawings = drawings.filter(d => d !== selected); selected = null; persist(); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !locked && !selected.lock) { e.preventDefault(); remember(); drawings = drawings.filter(d => d !== selected); selected = null; persist(); }
   else if (e.key === 'Enter') finishPath();
   else if (e.key === 'Escape') { draft = null; selected = null; setTool('cursor'); }
 });
@@ -592,7 +620,7 @@ $('side').onclick = e => {
   else if (t === '@lock') locked = !locked;
   else if (t === '@hide') { hidden = !hidden; selected = null; }
   else if (t === '@trash') {
-    if (locked) return toast('Unlock drawings first');
+    if (locked || (selected && selected.lock)) return toast('Unlock drawings first');
     if (selected) { remember(); drawings = drawings.filter(d => d !== selected); selected = null; persist(); }
     else if (drawings.length && confirm('Delete all drawings on ' + cfg.symbol + '?')) { remember(); drawings = []; persist(); }
     draft = null;
@@ -616,7 +644,7 @@ function bind(id, key) {
 [['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark']].forEach(a => bind(...a));
 function theme() {
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
-  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}' : '';
+  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#drawBar{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
 }
 $('indBtn').onclick = () => $('indDlg').showModal();
 $('setBtn').onclick = () => $('setDlg').showModal();
@@ -720,6 +748,59 @@ function updateQuote() {
   $('bid').textContent = bid ? fmt(bid) : '–'; $('ask').textContent = ask ? fmt(ask) : '–';
   $('spread').textContent = bid ? fmt(ask-bid, dec(bid)) : '';
 }
+
+/* ---------- drawing settings bar ---------- */
+const DB = $('drawBar');
+let dbFor = null, pend = null;
+const NOCOLOR = ['fib','long','short','measure'], NOLINE = ['long','short','measure','text'];
+function fillBar(d) {
+  const t = d.type;
+  $('dbColor').value = d.color || (t === 'text' ? (cfg.dark ? '#d1d4dc' : '#131722') : '#2962ff');
+  $('dbColor').hidden = NOCOLOR.includes(t);
+  $('dbFillL').hidden = t !== 'rect'; $('dbFill').value = Math.round((d.fill ?? .12) * 100);
+  const closest = [...$('dbW').options].reduce((a, o) => Math.abs(+o.value - (d.w || 1.6)) < Math.abs(+a.value - (d.w || 1.6)) ? o : a);
+  $('dbW').value = closest.value; $('dbW').hidden = NOLINE.includes(t);
+  $('dbDash').value = d.dash || 'solid'; $('dbDash').hidden = NOLINE.includes(t) || t === 'brush';
+  $('dbSize').hidden = t !== 'text'; if (t === 'text') $('dbSize').value = String(d.size || 15);
+  $('dbEdit').hidden = t !== 'text';
+  $('dbLock').textContent = d.lock ? '\u{1F512}' : '\u{1F513}';
+  $('dbLock').title = d.lock ? 'Unlock this drawing' : 'Lock this drawing';
+}
+function updateDrawBar() {
+  if (!selected || hidden || draft || !drawings.includes(selected)) { DB.hidden = true; dbFor = null; return; }
+  if (dbFor !== selected) { dbFor = selected; fillBar(selected); }
+  DB.hidden = false;
+  const hs = handles(selected), ys = hs.map(h => h[1]), xs = hs.map(h => h[0]);
+  let x = (Math.min(...xs) + Math.max(...xs)) / 2 - DB.offsetWidth / 2;
+  let y = Math.min(...ys) - DB.offsetHeight - 14;
+  if (!isFinite(x) || !isFinite(y)) return;
+  if (y < 6) y = Math.min(PH() - DB.offsetHeight - 6, Math.max(...ys) + 16);
+  DB.style.left = Math.max(6, Math.min(x, W - DB.offsetWidth - 6)) + 'px';
+  DB.style.top = Math.max(6, y) + 'px';
+}
+function styleChange(fn, asDefault) {
+  const d = selected; if (!d) return;
+  if (pend) { remember(pend); pend = null; }
+  fn(d);
+  if (asDefault) { dstyle = Object.assign({}, dstyle, asDefault(d)); save('dstyle', dstyle); }
+  persist();
+}
+DB.addEventListener('focusin', () => { pend = snap(); });
+DB.addEventListener('pointerdown', e => { if (e.target.tagName === 'BUTTON') pend = null; e.stopPropagation(); });
+$('dbColor').oninput = e => styleChange(d => d.color = e.target.value, d => d.type === 'text' ? {} : {color: d.color});
+$('dbFill').oninput = e => styleChange(d => d.fill = +e.target.value / 100);
+$('dbW').onchange = e => styleChange(d => d.w = +e.target.value, d => ({w: d.w}));
+$('dbDash').onchange = e => styleChange(d => d.dash = e.target.value, d => ({dash: d.dash}));
+$('dbSize').onchange = e => styleChange(d => d.size = +e.target.value);
+$('dbEdit').onclick = () => { const d = selected; if (!d) return; const v = prompt('Text:', d.text); if (v) { remember(); d.text = v; persist(); } };
+$('dbLock').onclick = () => { const d = selected; if (!d) return; remember(); d.lock = !d.lock; fillBar(d); persist(); };
+$('dbClone').onclick = () => {
+  const d = selected; if (!d) return; remember();
+  const c = JSON.parse(JSON.stringify(d)); delete c.lock;
+  c.pts = c.pts.map(p => ({t: p.t + TFMS[cfg.tf] * 3, p: p.p * .995}));
+  drawings.push(c); selected = c; persist();
+};
+$('dbDel').onclick = () => { const d = selected; if (!d) return; if (d.lock || locked) return toast('Unlock first'); remember(); drawings = drawings.filter(x => x !== d); selected = null; persist(); };
 
 /* ---------- chart layouts ---------- */
 function announce(what) { if (PANE != null && parent !== window) parent.postMessage({cc:'sync', what, symbol:cfg.symbol, tf:cfg.tf, ctype:cfg.ctype, from:PANE}, '*'); }
