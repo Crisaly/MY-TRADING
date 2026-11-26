@@ -47,6 +47,21 @@ dialog input:not([type=checkbox]):not([type=color]){border:1px solid #d1d4dc;bor
 dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .pri{background:#222;color:#fff}.pri:hover{background:#444}
 
+/* symbol search */
+#symDlg{width:min(640px,96vw);padding:0;border-radius:14px;top:8vh;margin:0 auto}
+#symTop{display:flex;align-items:center;gap:10px;padding:16px 18px 6px}
+#symDlg #symQ{flex:1;border:0;background:none;font-size:20px;outline:none;color:inherit;text-transform:uppercase;width:auto;padding:0;border-radius:0}
+#symChips{display:flex;gap:6px;flex-wrap:wrap;padding:8px 18px 10px}
+#symChips button{border-radius:18px;background:#f0f3fa;padding:6px 14px;color:#131722}
+#symChips button.on{background:#131722;color:#fff}
+#symList{max-height:56vh;overflow:auto;padding:4px 6px 10px}
+.symRow{display:flex;align-items:center;gap:12px;padding:8px 12px;cursor:pointer;border-radius:10px}
+.symRow.act{background:#f0f3fa}
+.symAv{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none}
+.symMain b{color:#2962ff;font-size:16px;font-weight:600}.symMain small{display:block;opacity:.75;margin-top:2px}
+.symTag{font-size:10px;font-weight:700;background:#eceef2;border-radius:4px;padding:1px 6px;margin-left:6px;letter-spacing:.3px;color:#555}
+.symEx{margin-left:auto;font-size:13px;opacity:.75;white-space:nowrap}
+.symNote{padding:8px 14px;font-size:13px;opacity:.7}
 /* chart navigation (shows on hover) */
 #nav{position:absolute;z-index:5;left:calc((100% - 78px) / 2);transform:translateX(-50%);bottom:42px;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .15s}
 #wrap:hover #nav,#nav:focus-within{opacity:1;pointer-events:auto}
@@ -228,6 +243,12 @@ body.pane #symbol{width:100px}
   <div class="drPane" data-pane="vis"><div id="drVis"></div><small>Untick a timeframe to hide this drawing on it.</small></div>
   <div class="drFoot"><button id="drCancel">Cancel</button><button class="pri" id="drOk">Ok</button></div>
 </div></dialog>
+
+<dialog id="symDlg">
+  <div id="symTop"><span style="font-size:20px">&#128269;</span><input id="symQ" placeholder="Search symbol (e.g. BTC, ETHUSDT, gold)" autocomplete="off" spellcheck="false"><button id="symClear" style="background:none">Clear</button><button id="symX" aria-label="Close" style="background:none">&#10005;</button></div>
+  <div id="symChips"></div>
+  <div id="symList"></div>
+</dialog>
 
 <dialog id="tfDlg"><h3>Custom timeframe</h3>
   <div class="drRow" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="number" id="tfN" min="1" max="999" value="7" style="width:90px"><select id="tfU"><option value="s">seconds<option value="m" selected>minutes<option value="h">hours<option value="d">days<option value="w">weeks</select></div>
@@ -858,7 +879,7 @@ $('side').onclick = e => {
 
 /* ---------- top bar ---------- */
 const saveCfg = () => { save(CFGKEY, cfg); render(); };
-$('symbol').addEventListener('focus', e => e.target.select());
+$('symbol').addEventListener('focus', e => { e.target.blur(); openSym(); });
 $('symbol').addEventListener('change', e => { const s = e.target.value.replace(/[^a-z0-9]/gi,'').toUpperCase(); if (!s) { e.target.value = cfg.symbol; return; } cfg.symbol = e.target.value = s; saveCfg(); loadChart(); e.target.blur(); announce('symbol'); });
 const tfLabel = tf => ({'1d':'D','1w':'W','1M':'M'})[tf] || tf;
 let customTfs = load('customTfs', []);
@@ -906,7 +927,7 @@ function bind(id, key) {
 [['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark']].forEach(a => bind(...a));
 function theme() {
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
-  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
+  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#symChips button{background:#2a2e39;color:#d1d4dc}#symChips button.on{background:#d1d4dc;color:#131722}.symRow.act{background:#2a2e39}.symTag{background:#2a2e39;color:#d1d4dc}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
 }
 $('indBtn').onclick = () => $('indDlg').showModal();
 $('setBtn').onclick = () => $('setDlg').showModal();
@@ -1116,6 +1137,70 @@ addEventListener('keydown', e => {
   }
 });
 
+/* ---------- symbol search ---------- */
+const QUOTES = ['FDUSD','USDT','USDC','TUSD','BUSD','USDP','USD1','AEUR','DAI','BTC','ETH','BNB','EUR','TRY','BRL','GBP','AUD','JPY','RUB','ARS','UAH','PLN','RON','CZK','MXN','ZAR','IDR','NGN','COP','XRP','DOGE','TRX','SOL','VAI'];
+const FIAT = ['EUR','TRY','BRL','GBP','AUD','JPY','RUB','ARS','UAH','PLN','RON','CZK','MXN','ZAR','IDR','NGN','COP','AEUR'];
+const NAMES = {BTC:'Bitcoin',ETH:'Ethereum',BNB:'BNB',SOL:'Solana',XRP:'XRP',ADA:'Cardano',DOGE:'Dogecoin',AVAX:'Avalanche',TRX:'TRON',DOT:'Polkadot',LINK:'Chainlink',POL:'Polygon',MATIC:'Polygon',LTC:'Litecoin',BCH:'Bitcoin Cash',SHIB:'Shiba Inu',UNI:'Uniswap',ATOM:'Cosmos',XLM:'Stellar',NEAR:'NEAR Protocol',APT:'Aptos',ARB:'Arbitrum',OP:'Optimism',SUI:'Sui',PEPE:'Pepe',TON:'Toncoin',FIL:'Filecoin',ETC:'Ethereum Classic',INJ:'Injective',AAVE:'Aave',MKR:'Maker',HBAR:'Hedera',ICP:'Internet Computer',PAXG:'PAX Gold (tokenized gold)',USDC:'USD Coin',USDT:'TetherUS',FDUSD:'First Digital USD',EUR:'Euro',TRY:'Turkish Lira',GBP:'British Pound',AUD:'Australian Dollar',BRL:'Brazilian Real',JPY:'Japanese Yen',RUNE:'THORChain',ALGO:'Algorand',VET:'VeChain',SAND:'The Sandbox',MANA:'Decentraland',AXS:'Axie Infinity',GRT:'The Graph',FTM:'Fantom',S:'Sonic',WLD:'Worldcoin',TIA:'Celestia',SEI:'Sei',JUP:'Jupiter',ENA:'Ethena',WIF:'dogwifhat',BONK:'Bonk',FET:'Fetch.ai',RENDER:'Render',IMX:'Immutable',STX:'Stacks',LDO:'Lido DAO',CRV:'Curve DAO',COMP:'Compound',SNX:'Synthetix',EOS:'EOS',XMR:'Monero',ZEC:'Zcash',DASH:'Dash',NEO:'NEO',KAVA:'Kava',GALA:'Gala',CHZ:'Chiliz',ENS:'Ethereum Name Service',PENDLE:'Pendle',ONDO:'Ondo',TAO:'Bittensor'};
+const ALIAS = {XAUUSD:'PAXGUSDT',XAU:'PAXGUSDT',GOLD:'PAXGUSDT',EURUSD:'EURUSDT',GBPUSD:'GBPUSDT',AUDUSD:'AUDUSDT',USDTRY:'USDTTRY',USDBRL:'USDTBRL'};
+const POPULAR = ['BTCUSDT','ETHUSDT','BNBUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','ADAUSDT','AVAXUSDT','TRXUSDT','LINKUSDT','TONUSDT','SUIUSDT','PAXGUSDT','DOTUSDT','LTCUSDT','PEPEUSDT','NEARUSDT','APTUSDT','ARBUSDT','OPUSDT','INJUSDT','AAVEUSDT','UNIUSDT','ATOMUSDT','FILUSDT','HBARUSDT','ETHBTC','BNBBTC','SOLBTC','EURUSDT','BTCUSDC','BTCFDUSD','BTCEUR','ETHEUR'];
+let allSyms = null, symFilter = 'ALL', symActive = 0, symShown = [];
+const splitSym = sym => { const q = QUOTES.find(q => sym.endsWith(q) && sym.length > q.length); return q ? {base: sym.slice(0, -q.length), quote: q} : {base: sym, quote: ''}; };
+async function loadSyms() {
+  if (allSyms) return allSyms;
+  for (const b of REST) { try { const r = await fetch(b + '/api/v3/ticker/price'); if (r.ok) { allSyms = (await r.json()).map(x => x.symbol).filter(x => /^[A-Z0-9]+$/.test(x)); return allSyms; } } catch {} }
+  return allSyms = POPULAR.slice();
+}
+const symColor = t => { let h = 0; for (const c of t) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},55%,45%)`; };
+function symRows() {
+  const q = $('symQ').value.replace(/[^a-z0-9]/gi, '').toUpperCase(), pool = allSyms || POPULAR, al = ALIAS[q];
+  const inChip = x => { const {quote} = splitSym(x); return symFilter === 'ALL' || (symFilter === 'FIAT' ? FIAT.includes(quote) : quote === symFilter); };
+  let list;
+  if (!q) { const rec = load('recentSyms', []); list = [...new Set([...rec, ...POPULAR])].filter(x => pool.includes(x) || POPULAR.includes(x)); }
+  else {
+    const qp = ['USDT','FDUSD','USDC','BTC','ETH','BNB','EUR'], score = x => {
+      const {base, quote} = splitSym(x), nm = (NAMES[base] || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const sc = x === q ? 0 : x.startsWith(q) ? 1 : base.startsWith(q) ? 2 : x.includes(q) ? 3 : nm.includes(q) ? 4 : 9;
+      return sc * 100 + (qp.includes(quote) ? qp.indexOf(quote) : 20);
+    };
+    list = pool.filter(x => score(x) < 900).sort((a, b) => score(a) - score(b) || a.localeCompare(b));
+    if (al && pool.includes(al)) list = [al, ...list.filter(x => x !== al)];
+  }
+  return list.filter(inChip).slice(0, 80).map(x => ({sym: x, alias: q && al === x ? q : ''}));
+}
+function drawSyms() {
+  symShown = symRows();
+  symActive = Math.min(symActive, Math.max(0, symShown.length - 1));
+  $('symList').innerHTML = symShown.length ? symShown.map((r, i) => {
+    const {base, quote} = splitSym(r.sym), nm = NAMES[base] || base, qn = NAMES[quote] || quote;
+    return `<div class="symRow${i === symActive ? ' act' : ''}" data-i="${i}"><div class="symAv" style="background:${symColor(base)}">${base.slice(0, 3)}</div>
+      <div class="symMain"><b>${r.sym}</b><span class="symTag">SPOT</span><small>${nm}${quote ? ' / ' + qn : ''}${r.alias ? ' · ' + r.alias + ' is not on Binance; this is the closest pair' : ''}</small></div><div class="symEx">BINANCE</div></div>`;
+  }).join('') : `<div class="symNote">No match. Press Enter to try “${$('symQ').value.replace(/[^a-z0-9]/gi, '').toUpperCase() || '…'}” anyway.</div>`;
+  const a = $('symList').querySelector('.act'); if (a) a.scrollIntoView({block: 'nearest'});
+}
+function pickSym(sym) {
+  if (!sym) return;
+  save('recentSyms', [sym, ...load('recentSyms', []).filter(x => x !== sym)].slice(0, 8));
+  $('symDlg').close(); $('symbol').value = sym; $('symbol').dispatchEvent(new Event('change'));
+}
+async function openSym() {
+  if ($('symDlg').open) return;
+  symFilter = 'ALL'; symActive = 0; $('symQ').value = cfg.symbol;
+  $('symChips').innerHTML = [['ALL','All'],['USDT','USDT'],['USDC','USDC'],['FDUSD','FDUSD'],['BTC','BTC'],['ETH','ETH'],['BNB','BNB'],['FIAT','Fiat']].map(([k, n]) => `<button data-k="${k}" class="${k === 'ALL' ? 'on' : ''}">${n}</button>`).join('');
+  drawSyms(); $('symDlg').showModal(); $('symQ').select();
+  if (!allSyms) { $('symList').insertAdjacentHTML('afterbegin', '<div class="symNote">Loading all Binance pairs…</div>'); await loadSyms(); if ($('symDlg').open) drawSyms(); }
+}
+$('symQ').addEventListener('input', () => { symActive = 0; drawSyms(); });
+$('symClear').onclick = () => { $('symQ').value = ''; symActive = 0; drawSyms(); $('symQ').focus(); };
+$('symX').onclick = () => $('symDlg').close();
+$('symChips').onclick = e => { const b = e.target.closest('button'); if (!b) return; symFilter = b.dataset.k; symActive = 0; document.querySelectorAll('#symChips button').forEach(x => x.classList.toggle('on', x === b)); drawSyms(); };
+$('symList').onclick = e => { const r = e.target.closest('.symRow'); if (r) pickSym(symShown[+r.dataset.i].sym); };
+$('symDlg').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); symActive = Math.min(symShown.length - 1, symActive + 1); drawSyms(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); symActive = Math.max(0, symActive - 1); drawSyms(); }
+  else if (e.key === 'Enter') { e.preventDefault(); pickSym(symShown[symActive] ? symShown[symActive].sym : $('symQ').value.replace(/[^a-z0-9]/gi, '').toUpperCase()); }
+});
+addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) { e.preventDefault(); openSym(); } });
+
 /* ---------- chart navigation buttons ---------- */
 function resetView() { barW = Math.max(6, Math.min(24, PW() / 70)); goLatest(); }
 const NAVTIP = {out:'Zoom out', in:'Zoom in', left:'Scroll to the left', right:'Scroll to the right', reset:'Reset chart view'};
@@ -1240,7 +1325,7 @@ $('drOk').onclick = () => {
   $('drDlg').close(); dbFor = null; persist();
 };
 function buildKb() {
-  const rows = [['Alt + O','Arc'],['Alt + N','Parallel channel'],['Alt + E','Ellipse'],['Alt + A','Arrow'],['Alt + K','Cross line'],['Alt + G','Highlighter'],['Alt + T','Trend line'],['Alt + Y','Ray'],['Alt + H','Horizontal line'],['Alt + J','Horizontal ray'],['Alt + V','Vertical line'],['Alt + F','Fib retracement'],['Alt + Q','Rectangle'],['Alt + R','Reset chart view'],['Alt + P','Path'],['Alt + L / S','Long / Short position'],['Alt + B','Brush'],['Alt + X','Text'],['Alt + M','Measure'],['Alt + Z','Zoom'],['Alt + C','Cursor'],
+  const rows = [['Ctrl/Cmd + K','Search symbol'],['Alt + O','Arc'],['Alt + N','Parallel channel'],['Alt + E','Ellipse'],['Alt + A','Arrow'],['Alt + K','Cross line'],['Alt + G','Highlighter'],['Alt + T','Trend line'],['Alt + Y','Ray'],['Alt + H','Horizontal line'],['Alt + J','Horizontal ray'],['Alt + V','Vertical line'],['Alt + F','Fib retracement'],['Alt + Q','Rectangle'],['Alt + R','Reset chart view'],['Alt + P','Path'],['Alt + L / S','Long / Short position'],['Alt + B','Brush'],['Alt + X','Text'],['Alt + M','Measure'],['Alt + Z','Zoom'],['Alt + C','Cursor'],
     ['Hold Alt','Demonstration cursor while drawing'],['Hold Shift + Click','Measure tool'],['Ctrl/Cmd + C','Copy selected object(s)'],['Ctrl/Cmd + V','Paste object(s) at cursor'],['Delete / Backspace / Wheel click','Remove object'],['Hold Ctrl/Cmd + Move a point','Temporarily toggle magnet'],['Ctrl/Cmd + Alt + H','Hide all drawings'],['Ctrl/Cmd + Drag','Clone a drawing'],['Hold Ctrl/Cmd + Click','Drawings multiselect'],['Drag + Shift','Move horizontally or vertically only'],['Arrow keys (Shift = bigger step)','Move selected drawing'],['Ctrl/Cmd + D','Clone selected drawing'],['Double-click / Enter','Drawing settings'],['Ctrl/Cmd + Z (+Shift)','Undo / Redo'],['Esc','Cancel / deselect'],['?','This list']];
   $('kbTable').innerHTML = rows.map(r => `<tr><td>${r[1]}</td><td><kbd>${r[0]}</kbd></td></tr>`).join('');
 }
