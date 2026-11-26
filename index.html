@@ -47,6 +47,15 @@ dialog input:not([type=checkbox]):not([type=color]){border:1px solid #d1d4dc;bor
 dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .pri{background:#222;color:#fff}.pri:hover{background:#444}
 
+/* chart navigation (shows on hover) */
+#nav{position:absolute;z-index:5;left:calc((100% - 78px) / 2);transform:translateX(-50%);bottom:42px;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .15s}
+#wrap:hover #nav,#nav:focus-within{opacity:1;pointer-events:auto}
+@media (hover:none){#nav{opacity:1;pointer-events:auto}}
+#nav button{width:34px;height:30px;padding:0;display:grid;place-items:center;background:#fff;color:#131722;border-radius:7px;box-shadow:0 1px 6px #0003;border:1px solid #e0e3eb}
+#nav button:hover{background:#f0f3fa}
+#nav svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#navTip{position:absolute;z-index:6;background:#131722;color:#fff;border-radius:6px;padding:6px 10px;font-size:13px;white-space:nowrap;pointer-events:none;transform:translateX(-50%);display:none}
+#navTip kbd{background:#434651;border-color:#434651;color:#fff;margin-left:6px}
 /* favorites toolbar */
 #side button{position:relative}
 #side button.fav::after{content:"\2605";position:absolute;top:0;right:3px;font-size:9px;color:#f5a623}
@@ -161,6 +170,14 @@ body.pane #symbol{width:100px}
     <div id="quote"><button id="sell"><b id="bid">–</b>SELL</button><span id="spread"></span><button id="buy"><b id="ask">–</b>BUY</button></div>
     <div id="legend"></div>
     <div id="msg"></div>
+    <div id="nav">
+      <button data-nav="out" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <button data-nav="in" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
+      <button data-nav="left" aria-label="Scroll to the left"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button data-nav="right" aria-label="Scroll to the right"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      <button data-nav="reset" aria-label="Reset chart view"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 108-8H8M8 4L5 7l3 3"/></svg></button>
+    </div>
+    <div id="navTip"></div>
     <div id="favBar" hidden><span id="favGrip" title="Drag to move">&#8942;&#8942;</span><span id="favBtns"></span><button id="favAdd" title="Add / remove favorite tools">+</button></div>
     <div id="favPick" hidden></div>
     <div id="drawBar" hidden>
@@ -786,7 +803,7 @@ addEventListener('keydown', e => {
 
 /* ---------- left toolbar ---------- */
 const ic = p => `<svg viewBox="0 0 24 24">${p}</svg>`;
-const SHORT = {KeyO:'arc', KeyE:'ellipse', KeyK:'cross', KeyG:'highlighter', KeyA:'arrow', KeyN:'channel', KeyC:'cursor', KeyT:'trend', KeyY:'ray', KeyH:'hline', KeyJ:'hray', KeyV:'vline', KeyF:'fib', KeyR:'rect', KeyP:'path', KeyL:'long', KeyS:'short', KeyB:'brush', KeyX:'text', KeyM:'measure', KeyZ:'zoom'};
+const SHORT = {KeyO:'arc', KeyE:'ellipse', KeyK:'cross', KeyG:'highlighter', KeyA:'arrow', KeyN:'channel', KeyC:'cursor', KeyT:'trend', KeyY:'ray', KeyH:'hline', KeyJ:'hray', KeyV:'vline', KeyF:'fib', KeyQ:'rect', KeyP:'path', KeyL:'long', KeyS:'short', KeyB:'brush', KeyX:'text', KeyM:'measure', KeyZ:'zoom'};
 const SHORTBY = {}; Object.entries(SHORT).forEach(([c, t]) => SHORTBY[t] = c.slice(3));
 const TOOLS = [
   ['cursor','Cursor','<path d="M12 3v18M3 12h18"/>'],
@@ -889,7 +906,7 @@ function bind(id, key) {
 [['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark']].forEach(a => bind(...a));
 function theme() {
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
-  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
+  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
 }
 $('indBtn').onclick = () => $('indDlg').showModal();
 $('setBtn').onclick = () => $('setDlg').showModal();
@@ -1099,6 +1116,32 @@ addEventListener('keydown', e => {
   }
 });
 
+/* ---------- chart navigation buttons ---------- */
+function resetView() { barW = Math.max(6, Math.min(24, PW() / 70)); goLatest(); }
+const NAVTIP = {out:'Zoom out', in:'Zoom in', left:'Scroll to the left', right:'Scroll to the right', reset:'Reset chart view'};
+const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+$('nav').addEventListener('click', e => {
+  const b = e.target.closest('[data-nav]'); if (!b || !view.length) return;
+  const k = b.dataset.nav, step = Math.max(3, PW() / barW * .15);
+  if (k === 'in') barW = clampW(barW * 1.25);
+  else if (k === 'out') barW = clampW(barW / 1.25);
+  else if (k === 'left') { right = clampRight(right - step); if (I(0) < 30) loadOlder(); }
+  else if (k === 'right') right = clampRight(right + step);
+  else if (k === 'reset') return resetView();
+  render();
+});
+$('nav').addEventListener('mouseover', e => {
+  const b = e.target.closest('[data-nav]'), tip = $('navTip'); if (!b) return;
+  tip.innerHTML = NAVTIP[b.dataset.nav] + (b.dataset.nav === 'reset' ? `<kbd>${MAC ? '\u2325' : 'Alt'}</kbd> + <kbd>R</kbd>` : '');
+  tip.style.display = 'block';
+  const r = b.getBoundingClientRect(), w = $('wrap').getBoundingClientRect();
+  tip.style.left = (r.left - w.left + r.width / 2) + 'px'; tip.style.top = (r.top - w.top - tip.offsetHeight - 8) + 'px';
+});
+$('nav').addEventListener('mouseout', e => { if (!e.relatedTarget || !e.relatedTarget.closest || !e.relatedTarget.closest('[data-nav]')) $('navTip').style.display = 'none'; });
+addEventListener('keydown', e => {
+  if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyR' && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) && !document.querySelector('dialog[open]')) { e.preventDefault(); resetView(); }
+});
+
 /* ---------- favorite drawings toolbar ---------- */
 let favs = load('favs', ['trend','hline','vline','rect','channel','fib','long','short','path','brush','text']), favOn = load('favOn', true);
 const FB = $('favBar'), toolById = id => TOOLS.find(t => t && t[0] === id);
@@ -1197,7 +1240,7 @@ $('drOk').onclick = () => {
   $('drDlg').close(); dbFor = null; persist();
 };
 function buildKb() {
-  const rows = [['Alt + O','Arc'],['Alt + N','Parallel channel'],['Alt + E','Ellipse'],['Alt + A','Arrow'],['Alt + K','Cross line'],['Alt + G','Highlighter'],['Alt + T','Trend line'],['Alt + Y','Ray'],['Alt + H','Horizontal line'],['Alt + J','Horizontal ray'],['Alt + V','Vertical line'],['Alt + F','Fib retracement'],['Alt + R','Rectangle'],['Alt + P','Path'],['Alt + L / S','Long / Short position'],['Alt + B','Brush'],['Alt + X','Text'],['Alt + M','Measure'],['Alt + Z','Zoom'],['Alt + C','Cursor'],
+  const rows = [['Alt + O','Arc'],['Alt + N','Parallel channel'],['Alt + E','Ellipse'],['Alt + A','Arrow'],['Alt + K','Cross line'],['Alt + G','Highlighter'],['Alt + T','Trend line'],['Alt + Y','Ray'],['Alt + H','Horizontal line'],['Alt + J','Horizontal ray'],['Alt + V','Vertical line'],['Alt + F','Fib retracement'],['Alt + Q','Rectangle'],['Alt + R','Reset chart view'],['Alt + P','Path'],['Alt + L / S','Long / Short position'],['Alt + B','Brush'],['Alt + X','Text'],['Alt + M','Measure'],['Alt + Z','Zoom'],['Alt + C','Cursor'],
     ['Hold Alt','Demonstration cursor while drawing'],['Hold Shift + Click','Measure tool'],['Ctrl/Cmd + C','Copy selected object(s)'],['Ctrl/Cmd + V','Paste object(s) at cursor'],['Delete / Backspace / Wheel click','Remove object'],['Hold Ctrl/Cmd + Move a point','Temporarily toggle magnet'],['Ctrl/Cmd + Alt + H','Hide all drawings'],['Ctrl/Cmd + Drag','Clone a drawing'],['Hold Ctrl/Cmd + Click','Drawings multiselect'],['Drag + Shift','Move horizontally or vertically only'],['Arrow keys (Shift = bigger step)','Move selected drawing'],['Ctrl/Cmd + D','Clone selected drawing'],['Double-click / Enter','Drawing settings'],['Ctrl/Cmd + Z (+Shift)','Undo / Redo'],['Esc','Cancel / deselect'],['?','This list']];
   $('kbTable').innerHTML = rows.map(r => `<tr><td>${r[1]}</td><td><kbd>${r[0]}</kbd></td></tr>`).join('');
 }
