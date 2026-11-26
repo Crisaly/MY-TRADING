@@ -126,7 +126,7 @@ body.pane #symbol{width:100px}
   <span class="sep keep" style="display:block"></span>
   <input id="symbol" list="symbols" value="BTCUSDT" aria-label="Symbol">
   <datalist id="symbols"><option>BTCUSDT<option>ETHUSDT<option>SOLUSDT<option>BNBUSDT<option>XRPUSDT<option>ADAUSDT<option>DOGEUSDT<option>LINKUSDT<option>AVAXUSDT<option>LTCUSDT</datalist>
-  <select id="tf" aria-label="Timeframe"><option>1m<option>5m<option>15m<option>30m<option>1h<option>4h<option value="1d" selected>D<option value="1w">W<option value="1M">M</select>
+  <select id="tf" aria-label="Timeframe"><option>1s<option>1m<option>3m<option>5m<option>15m<option>30m<option>1h<option>2h<option>4h<option value="1d" selected>D<option value="1w">W<option value="1M">M<option value="__c">+ Custom…</select>
   <select id="ctype" aria-label="Chart type"><option value="candle">Candles<option value="hollow">Hollow<option value="bars">Bars<option value="line">Line<option value="heikin">Heikin Ashi</select>
   <span class="sep"></span>
   <button id="indBtn">ƒx Indicators</button>
@@ -198,6 +198,13 @@ body.pane #symbol{width:100px}
   <div class="drFoot"><button id="drCancel">Cancel</button><button class="pri" id="drOk">Ok</button></div>
 </div></dialog>
 
+<dialog id="tfDlg"><h3>Custom timeframe</h3>
+  <div class="drRow" style="display:flex;gap:8px;align-items:center;margin:10px 0"><input type="number" id="tfN" min="1" max="999" value="7" style="width:90px"><select id="tfU"><option value="s">seconds<option value="m" selected>minutes<option value="h">hours<option value="d">days<option value="w">weeks</select></div>
+  <small id="tfInfo"></small>
+  <div id="tfList" style="margin:12px 0"></div>
+  <div class="row"><button id="tfCancel">Close</button><button class="pri" id="tfAdd">Apply</button></div>
+</dialog>
+
 <dialog id="kbDlg"><h3>Keyboard shortcuts</h3><table id="kbTable"></table><div class="row"><button class="pri" onclick="$('kbDlg').close()">Close</button></div></dialog>
 
 <div id="toast"></div>
@@ -234,7 +241,16 @@ const CFGKEY = PANE ? 'cfg_p' + PANE : 'cfg';
 if (PANE != null) { document.body.classList.add('pane'); if (new URLSearchParams(location.search).get('tight')) document.body.classList.add('tight'); }
 const cfg = Object.assign({symbol:'BTCUSDT', tf:'1d', ctype:'candle', up:'#d6d6d6', dn:'#f29d38', grid:false, log:false, dark:false,
   smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
-const TFMS = {'1m':6e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'4h':144e5,'1d':864e5,'1w':6048e5,'1M':2592e6};
+/* timeframes: Binance-native intervals are fetched directly; any custom one (7s, 7m, 90m, 5h, 3d, 2w …) is built by aggregating a smaller native interval */
+const NATIVE = {'1s':1e3,'1m':6e4,'3m':18e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,'12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
+const UNIT = {s:1e3, m:6e4, h:36e5, d:864e5, w:6048e5};
+const parseTf = tf => { const m = /^(\d+)([smhdw])$/.exec(tf); return m ? {n:+m[1], u:m[2], ms:+m[1] * UNIT[m[2]]} : null; };
+const TFMS = new Proxy({'1M':2592e6, ...NATIVE}, {get: (o, k) => k in o ? o[k] : (parseTf(k) || {}).ms});
+const isNative = tf => tf === '1M' || tf in NATIVE;
+const baseOf = tf => isNative(tf) ? tf : Object.entries(NATIVE).filter(([, v]) => v < TFMS[tf] && TFMS[tf] % v === 0).sort((a, b) => b[1] - a[1])[0][0];
+const offOf = tf => tf.endsWith('w') ? 3456e5 : 0;           // weeks start on Monday (UTC)
+const bucketOf = (t, tf) => Math.floor((t - offOf(tf)) / TFMS[tf]) * TFMS[tf] + offOf(tf);
+let liveTail = new Map();                                      // base candles of the newest custom candle
 const REST = ['https://data-api.binance.vision','https://api.binance.com'];
 const WS = 'wss://data-stream.binance.vision/stream?streams=';
 
@@ -255,6 +271,32 @@ const AXW = 78, AXH = 28;
 const PW = () => W - AXW, PH = () => H - AXH;
 
 /* ---------- data ---------- */
+async function klinesTf(sym, tf, extra = '') {
+  if (isNative(tf)) return klines(sym, tf, extra);
+  const base = baseOf(tf), bms = NATIVE[base], ms = TFMS[tf], ratio = ms / bms;
+  const em = /endTime=(\d+)/.exec(extra), E = em ? +em[1] : Date.now();
+  const pages = Math.min(12, Math.max(1, Math.ceil(500 * ratio / 1000)));
+  const res = await Promise.all(Array.from({length: pages}, (_, k) => { const q = klines(sym, base, '&endTime=' + (E - k * 1000 * bms)); return k ? q.catch(() => []) : q; }));
+  const seen = new Map(); res.flat().forEach(c => seen.set(c.t, c));
+  const src = [...seen.values()].sort((a, b) => a.t - b.t), out = [];
+  src.forEach(c => {
+    const t = bucketOf(c.t, tf), last = out[out.length - 1];
+    if (last && last.t === t) { last.h = Math.max(last.h, c.h); last.l = Math.min(last.l, c.l); last.c = c.c; last.v += c.v; }
+    else out.push({t, o:c.o, h:c.h, l:c.l, c:c.c, v:c.v, first:c.t});
+  });
+  if (out.length > 1 && out[0].first > out[0].t) out.shift();    // first bucket is incomplete
+  out.forEach(c => delete c.first);
+  if (!em && out.length) liveTail = new Map(src.filter(c => c.t >= out[out.length - 1].t).map(c => [c.t, c]));
+  return out;
+}
+function aggBar(k, last) {   // fold a live base-interval candle into the current custom candle
+  const b = {t:k.t, o:+k.o, h:+k.h, l:+k.l, c:+k.c, v:+k.v}, t = bucketOf(b.t, cfg.tf);
+  if (last && t < last.t) return null;
+  if (!last || t > last.t) liveTail = new Map();
+  liveTail.set(b.t, b);
+  const a = [...liveTail.values()].sort((x, y) => x.t - y.t);
+  return {t, o:a[0].o, h:Math.max(...a.map(x => x.h)), l:Math.min(...a.map(x => x.l)), c:a[a.length - 1].c, v:a.reduce((s, x) => s + x.v, 0)};
+}
 async function klines(sym, tf, extra = '') {
   let err;
   for (const base of REST) {
@@ -277,7 +319,7 @@ async function loadChart() {
   drawings = load('draw_' + cfg.symbol, []); undoS = []; redoS = [];
   updateQuote(); message('Loading ' + cfg.symbol + '…'); render();
   try {
-    const d = await klines(cfg.symbol, cfg.tf);
+    const d = await klinesTf(cfg.symbol, cfg.tf);
     if (g !== gen) return;
     if (!d.length) throw new Error('No data');
     data = d; view = data; message('');
@@ -292,12 +334,13 @@ function goLatest() { right = view.length - 1 + Math.max(5, PW() / barW * .4); y
 
 function connect(g) {
   const s = cfg.symbol.toLowerCase();
-  const sock = ws = new WebSocket(`${WS}${s}@kline_${cfg.tf}/${s}@bookTicker`);
+  const sock = ws = new WebSocket(`${WS}${s}@kline_${baseOf(cfg.tf)}/${s}@bookTicker`);
   sock.onmessage = ev => {
     if (g !== gen) return;
     const m = JSON.parse(ev.data).data;
     if (m.k) {
-      const k = m.k, bar = {t:k.t, o:+k.o, h:+k.h, l:+k.l, c:+k.c, v:+k.v}, last = data[data.length - 1];
+      const k = m.k, last = data[data.length - 1], bar = isNative(cfg.tf) ? {t:k.t, o:+k.o, h:+k.h, l:+k.l, c:+k.c, v:+k.v} : aggBar(k, last);
+      if (!bar) return;
       if (last.t === bar.t) data[data.length - 1] = bar;
       else if (bar.t > last.t) { data.push(bar); if (!replay && right >= data.length - 2) right++; }
       if (PANE == null) checkAlerts(lastPrice[cfg.symbol], bar.c);
@@ -309,7 +352,7 @@ function connect(g) {
 }
 async function resync(g) {            // refill any candles missed while disconnected
   try {
-    const d = await klines(cfg.symbol, cfg.tf);
+    const d = await klinesTf(cfg.symbol, cfg.tf);
     if (g !== gen) return;
     const old = data.filter(x => x.t < d[0].t);
     data = old.concat(d); if (!replay) view = data;
@@ -320,7 +363,7 @@ async function loadOlder() {
   if (loadingOld || noMore || replay || !data.length) return;
   loadingOld = true; const g = gen;
   try {
-    const d = await klines(cfg.symbol, cfg.tf, '&endTime=' + (data[0].t - 1));
+    const d = await klinesTf(cfg.symbol, cfg.tf, '&endTime=' + (data[0].t - 1));
     if (g !== gen) return;
     if (!d.length) noMore = true;
     else { data = d.concat(data); view = data; right += d.length; if (drag && drag.right != null) drag.right += d.length; render(); }
@@ -749,7 +792,41 @@ $('side').onclick = e => {
 const saveCfg = () => { save(CFGKEY, cfg); render(); };
 $('symbol').addEventListener('focus', e => e.target.select());
 $('symbol').addEventListener('change', e => { const s = e.target.value.replace(/[^a-z0-9]/gi,'').toUpperCase(); if (!s) { e.target.value = cfg.symbol; return; } cfg.symbol = e.target.value = s; saveCfg(); loadChart(); e.target.blur(); announce('symbol'); });
-$('tf').onchange = e => { cfg.tf = e.target.value; saveCfg(); loadChart(); announce('tf'); };
+const tfLabel = tf => ({'1d':'D','1w':'W','1M':'M'})[tf] || tf;
+let customTfs = load('customTfs', []);
+function ensureTfOption(tf) {
+  const sel = $('tf'); if ([...sel.options].some(o => o.value === tf) || !TFMS[tf]) return;
+  const o = document.createElement('option'); o.value = tf; o.textContent = tfLabel(tf);
+  const after = [...sel.options].filter(x => x.value !== '__c').find(x => TFMS[x.value] > TFMS[tf]);
+  sel.insertBefore(o, after || sel.querySelector('[value="__c"]'));
+}
+customTfs.forEach(ensureTfOption);
+function setTf(tf) { ensureTfOption(tf); cfg.tf = tf; $('tf').value = tf; saveCfg(); loadChart(); announce('tf'); }
+function tfInfo() {
+  const n = +$('tfN').value, u = $('tfU').value, ms = n * UNIT[u];
+  if (!(n >= 1) || ms < 1e3 || ms > 52 * 6048e5) return {err: 'Choose between 1 second and 52 weeks.'};
+  const key = Object.keys(NATIVE).find(k => NATIVE[k] === ms) || `${n}${u}`;
+  return {key, ms, native: isNative(key), base: baseOf(key)};
+}
+function tfRefresh() {
+  const i = tfInfo();
+  $('tfInfo').textContent = i.err || (i.native ? `${tfLabel(i.key)} is a standard interval.` : `Built from ${tfLabel(i.base)} candles (${i.ms / NATIVE[i.base]} per bar).`);
+  $('tfList').innerHTML = customTfs.length ? 'Saved: ' + customTfs.map(t => `<button class="tg" data-use="${t}" style="width:auto;padding:4px 10px">${t}</button><button data-del="${t}" title="Remove" style="padding:2px 6px">&#10005;</button>`).join(' ') : '';
+}
+function openTfDlg() { tfRefresh(); $('tfDlg').showModal(); }
+$('tfN').oninput = $('tfU').onchange = tfRefresh;
+$('tfCancel').onclick = () => $('tfDlg').close();
+$('tfAdd').onclick = () => {
+  const i = tfInfo(); if (i.err) return toast(i.err);
+  if (!i.native && !customTfs.includes(i.key)) { customTfs.push(i.key); save('customTfs', customTfs); }
+  $('tfDlg').close(); setTf(i.key);
+};
+$('tfList').onclick = e => {
+  const u = e.target.dataset.use, d = e.target.dataset.del;
+  if (u) { $('tfDlg').close(); setTf(u); }
+  if (d) { customTfs = customTfs.filter(x => x !== d); save('customTfs', customTfs); if (cfg.tf !== d) { const o = [...$('tf').options].find(x => x.value === d); if (o) o.remove(); } tfRefresh(); }
+};
+$('tf').onchange = e => { if (e.target.value === '__c') { e.target.value = cfg.tf; openTfDlg(); return; } setTf(e.target.value); };
 $('ctype').onchange = e => { cfg.ctype = e.target.value; saveCfg(); announce('ctype'); };
 $('undo').onclick = () => step(undoS, redoS);
 $('redo').onclick = () => step(redoS, undoS);
@@ -972,7 +1049,7 @@ addEventListener('keydown', e => {
 
 /* ---------- drawing settings dialog ---------- */
 const DNAMES = {trend:'Trend line', ray:'Ray', hline:'Horizontal line', hray:'Horizontal ray', vline:'Vertical line', fib:'Fib retracement', rect:'Rectangle', path:'Path', long:'Long position', short:'Short position', brush:'Brush', text:'Text', measure:'Measure'};
-const TFNAMES = [['1m','1 minute'],['5m','5 minutes'],['15m','15 minutes'],['30m','30 minutes'],['1h','1 hour'],['4h','4 hours'],['1d','Daily'],['1w','Weekly'],['1M','Monthly']];
+const TFNAMES = [['1s','1 second'],['1m','1 minute'],['3m','3 minutes'],['5m','5 minutes'],['15m','15 minutes'],['30m','30 minutes'],['1h','1 hour'],['2h','2 hours'],['4h','4 hours'],['1d','Daily'],['1w','Weekly'],['1M','Monthly']];
 const toLocal = t => new Date(t - new Date(t).getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
 let drD = null;
 function showTab(n) {
@@ -1002,7 +1079,7 @@ function openDrawDlg(d, tab) {
   $('drCoords').innerHTML = d.pts.length > 40 ? '<small>Too many points to list.</small>' : d.pts.map((p, i) => `<div class="drRow"><span>${d.pts.length === 1 ? 'Position' : names[i]}</span>`
     + (t === 'vline' ? '' : `<input type="number" step="any" data-i="${i}" data-k="p" value="${+p.p.toPrecision(10)}" title="Price">`)
     + (t === 'hline' || t === 'long' && i > 0 || t === 'short' && i > 0 ? '' : `<input type="datetime-local" data-i="${i}" data-k="t" data-orig="${toLocal(p.t)}" value="${toLocal(p.t)}" title="Time">`) + '</div>').join('');
-  $('drVis').innerHTML = TFNAMES.map(([k, n]) => `<label class="drChk"><input type="checkbox" data-tf="${k}"${(d.hideTf || []).includes(k) ? '' : ' checked'}> ${n}</label>`).join('');
+  $('drVis').innerHTML = TFNAMES.concat(customTfs.map(t => [t, t])).map(([k, n]) => `<label class="drChk"><input type="checkbox" data-tf="${k}"${(d.hideTf || []).includes(k) ? '' : ' checked'}> ${n}</label>`).join('');
   showTab(tab === 'text' && canText ? 'text' : hasStyle ? 'style' : canText ? 'text' : 'coords');
   $('drDlg').showModal();
 }
@@ -1041,7 +1118,7 @@ window.addEventListener('message', e => {   // inside a pane: receive synced val
   if (PANE == null || !e.data || e.data.cc !== 'apply') return;
   const m = e.data;
   if (m.what === 'symbol' && m.symbol !== cfg.symbol) { cfg.symbol = $('symbol').value = m.symbol; saveCfg(); loadChart(); }
-  if (m.what === 'tf' && m.tf !== cfg.tf) { cfg.tf = $('tf').value = m.tf; saveCfg(); loadChart(); }
+  if (m.what === 'tf' && m.tf !== cfg.tf) { ensureTfOption(m.tf); cfg.tf = $('tf').value = m.tf; saveCfg(); loadChart(); }
   if (m.what === 'ctype' && m.ctype !== cfg.ctype) { cfg.ctype = $('ctype').value = m.ctype; saveCfg(); }
 });
 if (PANE == null) {
@@ -1191,7 +1268,7 @@ setInterval(() => {
   $('clock').textContent = `${d.toLocaleTimeString('en-GB')} UTC${off >= 0 ? '+' : ''}${off}`;
   render();
 }, 1000);
-$('symbol').value = cfg.symbol; $('tf').value = cfg.tf; $('ctype').value = cfg.ctype;
+ensureTfOption(cfg.tf); $('symbol').value = cfg.symbol; $('tf').value = cfg.tf; $('ctype').value = cfg.ctype;
 theme(); paintSide(); updatePaper();
 W = $('wrap').clientWidth; H = $('wrap').clientHeight;
 loadChart();
