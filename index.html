@@ -47,6 +47,10 @@ dialog input:not([type=checkbox]):not([type=color]){border:1px solid #d1d4dc;bor
 dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 .pri{background:#222;color:#fff}.pri:hover{background:#444}
 
+/* drawing toolbar collapse handle */
+#sideTog{position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:6;width:15px;height:42px;padding:0;border-radius:0 8px 8px 0;background:#131722;color:#fff;font-size:13px;line-height:1;display:grid;place-items:center;opacity:.85;box-shadow:0 1px 6px #0004}
+#sideTog:hover{opacity:1;background:#2962ff}
+body.sideHidden #side{display:none}
 /* symbol search */
 #symDlg{width:min(640px,96vw);padding:0;border-radius:14px;top:8vh;margin:0 auto}
 #symTop{display:flex;align-items:center;gap:10px;padding:16px 18px 6px}
@@ -185,6 +189,7 @@ body.pane #symbol{width:100px}
     <div id="quote"><button id="sell"><b id="bid">–</b>SELL</button><span id="spread"></span><button id="buy"><b id="ask">–</b>BUY</button></div>
     <div id="legend"></div>
     <div id="msg"></div>
+    <button id="sideTog" title="Hide drawing toolbar" aria-label="Hide drawing toolbar">&#8249;</button>
     <div id="nav">
       <button data-nav="out" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
       <button data-nav="in" aria-label="Zoom in"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></svg></button>
@@ -198,6 +203,7 @@ body.pane #symbol{width:100px}
     <div id="drawBar" hidden>
       <input type="color" id="dbColor" title="Color">
       <label id="dbFillL" title="Fill opacity">Fill <input type="range" id="dbFill" min="0" max="80" value="12"></label>
+      <label id="dbAlphaL" title="Line opacity">Opacity <input type="range" id="dbAlpha" min="10" max="100" value="100"></label>
       <span class="sp"></span>
       <select id="dbW" title="Line thickness"><option value="1">1px<option value="1.6">2px<option value="2.5">3px<option value="3.5">4px<option value="5">5px<option value="7">7px</select>
       <select id="dbDash" title="Line style"><option value="solid">&#9473; Solid<option value="dashed">&#9548; Dashed<option value="dotted">&#9479; Dotted</select>
@@ -230,6 +236,7 @@ body.pane #symbol{width:100px}
   <div class="drTabs" id="drTabs"><button data-tab="style">Style</button><button data-tab="text">Text</button><button data-tab="coords">Coordinates</button><button data-tab="vis">Visibility</button></div>
   <div class="drPane" data-pane="style">
     <div class="drRow" id="rowColor"><span>Color</span><input type="color" id="drColor"></div>
+    <div class="drRow" id="rowAlpha"><span>Line opacity</span><input type="range" id="drAlpha" min="10" max="100"></div>
     <div class="drRow" id="rowW"><span>Thickness</span><select id="drW"><option value="1">1px<option value="1.6">2px<option value="2.5">3px<option value="3.5">4px<option value="5">5px<option value="7">7px</select></div>
     <div class="drRow" id="rowDash"><span>Line style</span><select id="drDash"><option value="solid">Solid<option value="dashed">Dashed<option value="dotted">Dotted</select></div>
     <div class="drRow" id="rowFill"><span>Fill opacity</span><input type="range" id="drFill" min="0" max="80"></div>
@@ -589,53 +596,57 @@ function position(d) {   // points: entry, target, stop (+ width from target poi
 }
 function drawShape(d, sel, fg) {
   const q = d.pts.map(p => [sx(p), sy(p)]), [a, b = a] = q;
-  const col = d.color || '#2962ff';
+  const col = d.color || '#2962ff', A = d.alpha ?? 1;
+  ctx.globalAlpha = A;
   ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = d.w || 1.6; ctx.textAlign = 'left';
   ctx.setLineDash(d.dash === 'dashed' ? [9,6] : d.dash === 'dotted' ? [2,5] : []);
   switch (d.type) {
     case 'trend': line(...a, ...b); break;
     case 'ray': { const dx = b[0]-a[0], dy = b[1]-a[1], k = 1e4/(Math.hypot(dx,dy)||1); line(a[0],a[1],a[0]+dx*k,a[1]+dy*k); break; }
-    case 'hline': line(0,a[1],PW(),a[1]); ctx.fillText(fmt(d.pts[0].p), 8, a[1]-9); break;
-    case 'hray': line(a[0],a[1],PW(),a[1]); ctx.fillText(fmt(d.pts[0].p), a[0]+6, a[1]-9); break;
+    case 'hline': line(0,a[1],PW(),a[1]); if (sel) ctx.fillText(fmt(d.pts[0].p), 8, a[1]-9); break;
+    case 'hray': line(a[0],a[1],PW(),a[1]); if (sel) ctx.fillText(fmt(d.pts[0].p), a[0]+6, a[1]-9); break;
     case 'vline': line(a[0],0,a[0],PH()); break;
-    case 'rect': ctx.globalAlpha = d.fill ?? .12; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = 1; ctx.strokeRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); break;
+    case 'rect': ctx.globalAlpha = d.fill ?? .12; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = A; ctx.strokeRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); break;
     case 'fib': {
       const x1 = Math.min(a[0],b[0]), x2 = Math.max(a[0],b[0]);
-      [0,.236,.382,.5,.618,.786,1].forEach(r => { const p = d.pts[1].p + (d.pts[0].p - d.pts[1].p)*r, y = Y(p); ctx.strokeStyle = r === .5 ? '#089981' : r === .618 ? '#f29d38' : '#787b86'; line(x1,y,x2,y); ctx.fillStyle = ctx.strokeStyle; ctx.fillText(`${r}  (${fmt(p)})`, x2+6, y); });
+      [0,.236,.382,.5,.618,.786,1].forEach(r => { const p = d.pts[1].p + (d.pts[0].p - d.pts[1].p)*r, y = Y(p); ctx.strokeStyle = r === .5 ? '#089981' : r === .618 ? '#f29d38' : '#787b86'; line(x1,y,x2,y); ctx.fillStyle = ctx.strokeStyle; if (sel) ctx.fillText(`${r}  (${fmt(p)})`, x2+6, y); });
       break; }
     case 'path': case 'brush':
       ctx.beginPath(); q.forEach((p,i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p));
       if (d.hl) { ctx.lineWidth = 14; ctx.lineCap = ctx.lineJoin = 'round'; ctx.globalAlpha = .35; ctx.strokeStyle = d.color || '#f2c038'; }
-      ctx.stroke(); ctx.globalAlpha = 1; ctx.lineCap = 'butt'; break;
+      ctx.stroke(); ctx.globalAlpha = A; ctx.lineCap = 'butt'; break;
     case 'arc': { const c = q[2] || b, cx = 2*c[0] - (a[0]+b[0])/2, cy = 2*c[1] - (a[1]+b[1])/2;
       ctx.beginPath(); ctx.moveTo(...a); ctx.quadraticCurveTo(cx, cy, ...b);
-      ctx.globalAlpha = d.fill ?? .08; ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = d.fill ?? .08; ctx.closePath(); ctx.fill(); ctx.globalAlpha = A;
       ctx.beginPath(); ctx.moveTo(...a); ctx.quadraticCurveTo(cx, cy, ...b); ctx.stroke(); break; }
     case 'ellipse': { const rx = Math.max(.5, Math.abs(b[0]-a[0])/2), ry = Math.max(.5, Math.abs(b[1]-a[1])/2);
-      ctx.beginPath(); ctx.ellipse((a[0]+b[0])/2, (a[1]+b[1])/2, rx, ry, 0, 0, 7); ctx.globalAlpha = d.fill ?? .12; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke(); break; }
+      ctx.beginPath(); ctx.ellipse((a[0]+b[0])/2, (a[1]+b[1])/2, rx, ry, 0, 0, 7); ctx.globalAlpha = d.fill ?? .12; ctx.fill(); ctx.globalAlpha = A; ctx.stroke(); break; }
     case 'cross': line(0,a[1],PW(),a[1]); line(a[0],0,a[0],PH()); break;
     case 'arrow': { line(...a, ...b); const ang = Math.atan2(b[1]-a[1], b[0]-a[0]), L = 10 + (d.w || 1.6) * 2; ctx.setLineDash([]);
       ctx.beginPath(); ctx.moveTo(...b); ctx.lineTo(b[0]-L*Math.cos(ang-.45), b[1]-L*Math.sin(ang-.45)); ctx.lineTo(b[0]-L*Math.cos(ang+.45), b[1]-L*Math.sin(ang+.45)); ctx.closePath(); ctx.fill(); break; }
     case 'channel': { const c = q[2] || b, m = b[0] === a[0] ? 0 : (b[1]-a[1])/(b[0]-a[0]), dy = c[1] - (a[1] + m*(c[0]-a[0]));
       line(a[0],a[1],b[0],b[1]); line(a[0],a[1]+dy,b[0],b[1]+dy);
-      ctx.globalAlpha = d.fill ?? .12; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(b[0],b[1]+dy); ctx.lineTo(a[0],a[1]+dy); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1; break; }
+      ctx.globalAlpha = d.fill ?? .12; ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(b[0],b[1]+dy); ctx.lineTo(a[0],a[1]+dy); ctx.closePath(); ctx.fill(); ctx.globalAlpha = A; break; }
     case 'text': ctx.font = (d.italic ? 'italic ' : '') + (d.bold ? 'bold ' : '') + (d.size || 15) + 'px -apple-system,sans-serif'; ctx.fillStyle = d.color || fg; ctx.fillText(d.text, ...a); ctx.font = '12px -apple-system,sans-serif'; break;
     case 'measure': {
       const dp = d.pts[1] ? d.pts[1].p - d.pts[0].p : 0, bars = Math.round(t2i((d.pts[1]||d.pts[0]).t) - t2i(d.pts[0].t));
-      ctx.fillStyle = dp >= 0 ? '#2962ff' : '#e0484d'; ctx.globalAlpha = .15; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = 1;
+      ctx.fillStyle = dp >= 0 ? '#2962ff' : '#e0484d'; ctx.globalAlpha = .15; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = A;
       ctx.fillText(`${fmt(dp)} (${(dp/d.pts[0].p*100).toFixed(2)}%)  ${bars} bars`, Math.min(a[0],b[0]), b[1] + (dp >= 0 ? -12 : 12)); break; }
     case 'long': case 'short': {
       const {e,t,s,x1,x2} = position(d), ye = Y(e.p), yt = Y(t.p), ys = Y(s.p);
-      ctx.globalAlpha = .2; ctx.fillStyle = '#089981'; ctx.fillRect(x1,ye,x2-x1,yt-ye); ctx.fillStyle = '#e0484d'; ctx.fillRect(x1,ye,x2-x1,ys-ye); ctx.globalAlpha = 1;
+      ctx.globalAlpha = .2; ctx.fillStyle = '#089981'; ctx.fillRect(x1,ye,x2-x1,yt-ye); ctx.fillStyle = '#e0484d'; ctx.fillRect(x1,ye,x2-x1,ys-ye); ctx.globalAlpha = A;
       ctx.strokeStyle = '#787b86'; line(x1,ye,x2,ye);
       const pc = p => (Math.abs(p-e.p)/e.p*100).toFixed(2) + '%';
       ctx.fillStyle = fg;
+      if (sel) {
       ctx.fillText(`Target ${fmt(t.p)} (${pc(t.p)})`, x1+4, yt + (yt<ye?-9:9));
       ctx.fillText(`Stop ${fmt(s.p)} (${pc(s.p)})`, x1+4, ys + (ys<ye?-9:9));
-      ctx.fillText(`${d.type.toUpperCase()}  R:R ${(Math.abs(t.p-e.p)/(Math.abs(s.p-e.p)||1)).toFixed(2)}`, x1+4, ye-9); break; }
+      ctx.fillText(`${d.type.toUpperCase()}  R:R ${(Math.abs(t.p-e.p)/(Math.abs(s.p-e.p)||1)).toFixed(2)}`, x1+4, ye-9); }
+      break; }
   }
   drawLabel(d, a, b, col);
   ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
   if (sel && d.type !== 'brush') { ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2962ff'; handles(d).forEach(([x,y]) => { ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill(); ctx.stroke(); }); }
   ctx.lineWidth = 1;
 }
@@ -1040,7 +1051,7 @@ const NOCOLOR = ['fib','long','short','measure'], NOLINE = ['long','short','meas
 function fillBar(d) {
   const t = d.type;
   $('dbColor').value = d.color || (t === 'text' ? (cfg.dark ? '#d1d4dc' : '#131722') : '#2962ff');
-  $('dbColor').hidden = NOCOLOR.includes(t);
+  $('dbColor').hidden = NOCOLOR.includes(t); $('dbAlpha').value = Math.round((d.alpha ?? 1) * 100);
   $('dbFillL').hidden = !FILLABLE.includes(t); $('dbFill').value = Math.round((d.fill ?? .12) * 100);
   const closest = [...$('dbW').options].reduce((a, o) => Math.abs(+o.value - (d.w || 1.6)) < Math.abs(+a.value - (d.w || 1.6)) ? o : a);
   $('dbW').value = closest.value; $('dbW').hidden = NOLINE.includes(t);
@@ -1072,6 +1083,7 @@ function styleChange(fn, asDefault) {
 DB.addEventListener('focusin', () => { pend = snap(); });
 DB.addEventListener('pointerdown', e => { if (e.target.tagName === 'BUTTON') pend = null; e.stopPropagation(); });
 $('dbColor').oninput = e => styleChange(d => d.color = e.target.value, d => d.type === 'text' ? {} : {color: d.color});
+$('dbAlpha').oninput = e => styleChange(d => d.alpha = +e.target.value / 100);
 $('dbFill').oninput = e => styleChange(d => d.fill = +e.target.value / 100);
 $('dbW').onchange = e => styleChange(d => d.w = +e.target.value, d => ({w: d.w}));
 $('dbDash').onchange = e => styleChange(d => d.dash = e.target.value, d => ({dash: d.dash}));
@@ -1201,6 +1213,19 @@ $('symDlg').addEventListener('keydown', e => {
 });
 addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) { e.preventDefault(); openSym(); } });
 
+/* ---------- collapse / expand the drawing toolbar ---------- */
+function paintSideTog() {
+  const h = document.body.classList.contains('sideHidden');
+  $('sideTog').innerHTML = h ? '&#8250;' : '&#8249;';
+  $('sideTog').title = $('sideTog').ariaLabel = h ? 'Show drawing toolbar' : 'Hide drawing toolbar';
+}
+$('sideTog').onclick = () => {
+  const h = document.body.classList.toggle('sideHidden'); save('sideHidden', h); paintSideTog();
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 0);
+};
+if (load('sideHidden', false)) document.body.classList.add('sideHidden');
+paintSideTog();
+
 /* ---------- chart navigation buttons ---------- */
 function resetView() { barW = Math.max(6, Math.min(24, PW() / 70)); goLatest(); }
 const NAVTIP = {out:'Zoom out', in:'Zoom in', left:'Scroll to the left', right:'Scroll to the right', reset:'Reset chart view'};
@@ -1284,7 +1309,7 @@ function openDrawDlg(d, tab) {
   document.querySelector('#drTabs [data-tab=style]').hidden = !hasStyle;
   document.querySelector('#drTabs [data-tab=text]').hidden = !canText;
   $('rowColor').hidden = NOCOLOR.includes(t); $('rowW').hidden = NOLINE.includes(t); $('rowDash').hidden = NOLINE.includes(t) || t === 'brush'; $('rowFill').hidden = !FILLABLE.includes(t);
-  $('drColor').value = d.color || '#2962ff';
+  $('drColor').value = d.color || '#2962ff'; $('drAlpha').value = Math.round((d.alpha ?? 1) * 100);
   const w = d.w || 1.6; $('drW').value = [...$('drW').options].reduce((a, o) => Math.abs(+o.value - w) < Math.abs(+a.value - w) ? o : a).value;
   $('drDash').value = d.dash || 'solid'; $('drFill').value = Math.round((d.fill ?? .12) * 100);
   const src = isText ? d : L;
@@ -1308,6 +1333,7 @@ $('drI').onclick = () => $('drI').classList.toggle('on');
 $('drX').onclick = $('drCancel').onclick = () => $('drDlg').close();
 $('drOk').onclick = () => {
   const d = drD; if (!d) return; const t = d.type; remember();
+  if (!document.querySelector('#drTabs [data-tab=style]').hidden) d.alpha = +$('drAlpha').value / 100;
   if (!$('rowColor').hidden) d.color = $('drColor').value;
   if (!$('rowW').hidden) d.w = +$('drW').value;
   if (!$('rowDash').hidden) d.dash = $('drDash').value;
