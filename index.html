@@ -57,6 +57,42 @@ dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 #drawBar button{padding:5px 8px;font-size:15px}
 #drawBar .sp{width:1px;height:20px;background:#e0e3eb;margin:0 3px;flex:none}
 #drawBar [hidden]{display:none!important}
+/* drawing settings dialog */
+#drDlg{width:min(460px,94vw);padding:0}
+#drBox{padding:20px 22px}
+.drHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.drHead h3{margin:0;font-size:20px}
+.drTabs{display:flex;gap:18px;border-bottom:2px solid #eceef2;margin-bottom:16px}
+.drTabs button{padding:8px 2px;border-radius:0;font-weight:600;opacity:.6;border-bottom:2px solid transparent;margin-bottom:-2px;background:none}
+.drTabs button.on{background:none;color:inherit;opacity:1;border-bottom-color:currentColor}
+.drTabs button:hover{background:none;opacity:1}
+.drPane{display:none}.drPane.on{display:block}
+.drRow{display:flex;align-items:center;gap:10px;margin:10px 0;flex-wrap:wrap}
+.drRow>span{min-width:96px}
+#drDlg select,#drDlg textarea,#drDlg input:not([type=range]):not([type=checkbox]):not([type=color]){border:1px solid #d1d4dc;border-radius:8px;padding:8px 10px;background:transparent;color:inherit}
+#drDlg input[type=color]{width:40px;height:36px;padding:2px;border:1px solid #d1d4dc;border-radius:8px;background:none;cursor:pointer}
+#drDlg input[type=datetime-local]{width:210px}
+#drDlg textarea{width:100%;min-height:90px;resize:vertical;font:inherit;margin:6px 0}
+#drDlg .tg{border:1px solid #d1d4dc;width:40px;height:36px;padding:0;font-size:16px;border-radius:8px}
+#drDlg .tg.on{background:#222;color:#fff}
+.drFoot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.drFoot button{border:1px solid currentColor;padding:8px 18px;border-radius:8px}
+.drFoot .pri{border-color:#222}
+.drChk{display:flex;align-items:center;gap:10px;margin:8px 0}
+#kbDlg table{border-collapse:collapse;width:100%}
+#kbDlg td{padding:5px 4px;border-bottom:1px solid #eee}
+#kbDlg td:last-child{text-align:right;white-space:nowrap}
+kbd{background:#f0f3fa;border:1px solid #d1d4dc;border-radius:5px;padding:1px 6px;font:12px monospace;color:inherit}
+/* pane splitters */
+#panes{position:relative}
+#panes.dragging iframe{pointer-events:none}
+.spl{position:absolute;z-index:4;touch-action:none}
+.spl.v{cursor:col-resize;width:11px}
+.spl.h{cursor:row-resize;height:11px}
+.spl::after{content:"";position:absolute;background:#2962ff;opacity:0;transition:opacity .12s}
+.spl.v::after{left:4px;width:3px;top:0;bottom:0}
+.spl.h::after{top:4px;height:3px;left:0;right:0}
+.spl:hover::after,.spl.act::after{opacity:.55}
 /* layouts */
 #layBtn{display:flex;align-items:center;gap:6px}
 #layBtn svg{width:20px;height:20px}
@@ -101,6 +137,7 @@ body.pane #symbol{width:100px}
   <button id="undo" title="Undo">↶</button><button id="redo" title="Redo">↷</button>
   <span class="grow keep"></span>
   <button id="setBtn" title="Settings">⚙ Settings</button>
+  <button id="kbBtn" title="Keyboard shortcuts (?)">⌨</button>
   <button id="fsBtn" class="keep" title="Fullscreen">⛶</button>
   <button id="shotBtn" title="Save picture">📷</button>
 </div>
@@ -119,7 +156,8 @@ body.pane #symbol{width:100px}
       <select id="dbW" title="Line thickness"><option value="1">1px<option value="1.6">2px<option value="2.5">3px<option value="3.5">4px<option value="5">5px<option value="7">7px</select>
       <select id="dbDash" title="Line style"><option value="solid">&#9473; Solid<option value="dashed">&#9548; Dashed<option value="dotted">&#9479; Dotted</select>
       <select id="dbSize" title="Text size"><option>12<option>15<option>18<option>24<option>32<option>48</select>
-      <button id="dbEdit" title="Edit text">Aa</button>
+      <button id="dbEdit" title="Add / edit text">Aa</button>
+      <button id="dbSet" title="Settings (double-click the drawing)">&#9881;</button>
       <span class="sp"></span>
       <button id="dbClone" title="Clone">&#10697;</button>
       <button id="dbLock" title="Lock this drawing">&#128275;</button>
@@ -140,6 +178,27 @@ body.pane #symbol{width:100px}
     <table><thead><tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Now / Exit</th><th>P&amp;L</th><th></th></tr></thead><tbody id="rows"></tbody></table>
   </div>
 </div>
+
+<dialog id="drDlg"><div id="drBox">
+  <div class="drHead"><h3 id="drTitle"></h3><button id="drX" title="Close">&#10005;</button></div>
+  <div class="drTabs" id="drTabs"><button data-tab="style">Style</button><button data-tab="text">Text</button><button data-tab="coords">Coordinates</button><button data-tab="vis">Visibility</button></div>
+  <div class="drPane" data-pane="style">
+    <div class="drRow" id="rowColor"><span>Color</span><input type="color" id="drColor"></div>
+    <div class="drRow" id="rowW"><span>Thickness</span><select id="drW"><option value="1">1px<option value="1.6">2px<option value="2.5">3px<option value="3.5">4px<option value="5">5px<option value="7">7px</select></div>
+    <div class="drRow" id="rowDash"><span>Line style</span><select id="drDash"><option value="solid">Solid<option value="dashed">Dashed<option value="dotted">Dotted</select></div>
+    <div class="drRow" id="rowFill"><span>Fill opacity</span><input type="range" id="drFill" min="0" max="80"></div>
+  </div>
+  <div class="drPane" data-pane="text">
+    <div class="drRow"><input type="color" id="drTColor" title="Text color"><select id="drTSize" title="Size"><option>10<option>12<option>14<option>15<option>18<option>24<option>32<option>48</select><button class="tg" id="drB" title="Bold"><b>B</b></button><button class="tg" id="drI" title="Italic"><i>I</i></button></div>
+    <textarea id="drText" placeholder="Add text"></textarea>
+    <div class="drRow" id="rowAlign"><span>Text alignment</span><select id="drV"><option value="top">Top<option value="middle">Middle<option value="bottom">Bottom</select><select id="drH"><option value="left">Left<option value="center">Center<option value="right">Right</select></div>
+  </div>
+  <div class="drPane" data-pane="coords"><div id="drCoords"></div></div>
+  <div class="drPane" data-pane="vis"><div id="drVis"></div><small>Untick a timeframe to hide this drawing on it.</small></div>
+  <div class="drFoot"><button id="drCancel">Cancel</button><button class="pri" id="drOk">Ok</button></div>
+</div></dialog>
+
+<dialog id="kbDlg"><h3>Keyboard shortcuts</h3><table id="kbTable"></table><div class="row"><button class="pri" onclick="$('kbDlg').close()">Close</button></div></dialog>
 
 <div id="toast"></div>
 <div id="layPop"></div>
@@ -182,6 +241,8 @@ const WS = 'wss://data-stream.binance.vision/stream?streams=';
 let data = [], view = [], ws = null, gen = 0, retry = null;
 let barW = 18, right = 0, yAuto = true, yMin = 0, yMax = 1;   // right = bar index at the right edge
 let tool = 'cursor', draft = null, selected = null, hover = null, drag = null;
+let multi = [], invMag = false, altDown = false;
+const grp = () => multi.length > 1 ? multi.filter(d => drawings.includes(d)) : selected ? [selected] : [];
 let magnet = true, locked = false, hidden = false;
 let drawings = [], undoS = [], redoS = [];
 let alerts = load('alerts', []), trades = load('trades', []);
@@ -291,7 +352,7 @@ function i2t(i) {
 const sx = pt => X(t2i(pt.t)), sy = pt => Y(pt.p);
 function pointAt(x, y) {
   let i = I(x), p = P(y);
-  if (magnet && view.length) {
+  if ((magnet !== invMag) && view.length) {
     i = Math.round(i); const c = view[i];
     if (c) { const near = [c.o,c.h,c.l,c.c].reduce((a,b) => Math.abs(Y(b)-y) < Math.abs(Y(a)-y) ? b : a); if (Math.abs(Y(near)-y) < 18) p = near; }
   }
@@ -394,7 +455,7 @@ function paint() {
     for (let i = first; i <= last; i++) { if (v[i] == null) continue; pen ? ctx.lineTo(X(i),Y(v[i])) : ctx.moveTo(X(i),Y(v[i])); pen = true; }
     ctx.stroke(); ctx.lineWidth = 1;
   }
-  if (!hidden) drawings.forEach(d => drawShape(d, d === selected, fg));
+  if (!hidden) drawings.forEach(d => { if (vis(d)) drawShape(d, d === selected || multi.includes(d), fg); });
   if (draft) drawShape(draft, true, fg);
   ctx.restore();
 
@@ -408,6 +469,7 @@ function paint() {
   if (hover && hover.x < PW() && hover.y < PH()) {
     ctx.setLineDash([5,5]); ctx.strokeStyle = '#8b909c'; const hx = X(Math.round(I(hover.x)));
     line(hx,0,hx,PH()); line(0,hover.y,PW(),hover.y); ctx.setLineDash([]);
+    if (altDown) { ctx.fillStyle = 'rgba(41,98,255,.25)'; ctx.strokeStyle = '#2962ff'; ctx.beginPath(); ctx.arc(hover.x, hover.y, 14, 0, 7); ctx.fill(); ctx.stroke(); }
     tag(hover.y, fmt(P(hover.y)), '#434651');
     const s = fullDate(i2t(Math.round(I(hover.x)))), w = ctx.measureText(s).width + 16;
     ctx.fillStyle = '#434651'; ctx.fillRect(hx-w/2, PH()+3, w, 22); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(s, hx, PH()+14);
@@ -442,7 +504,7 @@ function drawShape(d, sel, fg) {
       break; }
     case 'path': case 'brush':
       ctx.beginPath(); q.forEach((p,i) => i ? ctx.lineTo(...p) : ctx.moveTo(...p)); ctx.stroke(); break;
-    case 'text': ctx.font = (d.size || 15) + 'px -apple-system,sans-serif'; ctx.fillStyle = d.color || fg; ctx.fillText(d.text, ...a); ctx.font = '12px -apple-system,sans-serif'; break;
+    case 'text': ctx.font = (d.italic ? 'italic ' : '') + (d.bold ? 'bold ' : '') + (d.size || 15) + 'px -apple-system,sans-serif'; ctx.fillStyle = d.color || fg; ctx.fillText(d.text, ...a); ctx.font = '12px -apple-system,sans-serif'; break;
     case 'measure': {
       const dp = d.pts[1] ? d.pts[1].p - d.pts[0].p : 0, bars = Math.round(t2i((d.pts[1]||d.pts[0]).t) - t2i(d.pts[0].t));
       ctx.fillStyle = dp >= 0 ? '#2962ff' : '#e0484d'; ctx.globalAlpha = .15; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = 1;
@@ -457,9 +519,35 @@ function drawShape(d, sel, fg) {
       ctx.fillText(`Stop ${fmt(s.p)} (${pc(s.p)})`, x1+4, ys + (ys<ye?-9:9));
       ctx.fillText(`${d.type.toUpperCase()}  R:R ${(Math.abs(t.p-e.p)/(Math.abs(s.p-e.p)||1)).toFixed(2)}`, x1+4, ye-9); break; }
   }
+  drawLabel(d, a, b, col);
   ctx.setLineDash([]);
   if (sel && d.type !== 'brush') { ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2962ff'; handles(d).forEach(([x,y]) => { ctx.beginPath(); ctx.arc(x,y,5,0,7); ctx.fill(); ctx.stroke(); }); }
   ctx.lineWidth = 1;
+}
+const vis = d => !(d.hideTf && d.hideTf.includes(cfg.tf));
+const LABELABLE = ['trend','ray','hline','hray','vline','rect'];
+function drawLabel(d, a, b, col) {   // optional text attached to a line / rectangle
+  const L = d.label; if (!L || !L.text || !LABELABLE.includes(d.type)) return;
+  let x1, y1, x2, y2, inside = false;
+  switch (d.type) {
+    case 'trend': case 'ray': [x1,y1,x2,y2] = [a[0],a[1],b[0],b[1]]; break;
+    case 'hline': [x1,y1,x2,y2] = [0,a[1],PW(),a[1]]; break;
+    case 'hray': [x1,y1,x2,y2] = [a[0],a[1],PW(),a[1]]; break;
+    case 'vline': [x1,y1,x2,y2] = [a[0],PH(),a[0],0]; break;
+    case 'rect': { const l = Math.min(a[0],b[0]), r = Math.max(a[0],b[0]), t = Math.min(a[1],b[1]), bt = Math.max(a[1],b[1]);
+      const yy = L.v === 'top' ? t : L.v === 'bottom' ? bt : (t + bt) / 2; [x1,y1,x2,y2] = [l,yy,r,yy]; inside = true; break; }
+  }
+  let ang = Math.atan2(y2 - y1, x2 - x1);
+  if (ang > Math.PI/2 || ang < -Math.PI/2) { ang += Math.PI; [x1,x2] = [x2,x1]; [y1,y2] = [y2,y1]; }
+  const h = L.h || 'center', k = h === 'left' ? 0 : h === 'right' ? 1 : .5, size = L.size || 12;
+  const off = d.type === 'rect' ? (L.v === 'top' ? 1 : L.v === 'bottom' ? -1 : 0) : (L.v === 'top' ? -1 : L.v === 'bottom' ? 1 : 0);
+  ctx.save();
+  ctx.translate(x1 + (x2 - x1) * k, y1 + (y2 - y1) * k); ctx.rotate(ang);
+  ctx.font = (L.italic ? 'italic ' : '') + (L.bold ? 'bold ' : '') + size + 'px -apple-system,sans-serif';
+  ctx.fillStyle = L.color || col; ctx.textAlign = h; ctx.textBaseline = 'middle'; ctx.setLineDash([]);
+  const lines = String(L.text).split('\n'), lh = size * 1.25, pad = 6, base = off * (size * .5 + 6 + (off === 1 ? 0 : (off === -1 ? (lines.length - 1) * lh : 0)));
+  lines.forEach((ln, i) => ctx.fillText(ln, h === 'left' ? pad : h === 'right' ? -pad : 0, base + (off === 0 ? (i - (lines.length - 1) / 2) * lh : i * lh - (off === -1 ? (lines.length - 1) * lh : 0) + (off === -1 ? (lines.length - 1) * lh - (lines.length - 1) * lh : 0))));
+  ctx.restore();
 }
 function handles(d) {
   if (d.type === 'long' || d.type === 'short') { const {e,t,s,x1,x2} = position(d); return [[x1,Y(e.p)],[x2,Y(t.p)],[x1,Y(s.p)]]; }
@@ -500,13 +588,17 @@ cv.addEventListener('pointerdown', e => {
   if (m.x > PW()) { drag = {mode:'yscale', y:m.y, a:tr(yMin), b:tr(yMax)}; yAuto = false; return; }
   if (m.y > PH()) { drag = {mode:'xscale', x:m.x, w:barW}; return; }
   if (replay && replay.picking) { startReplayAt(Math.round(I(m.x))); return; }
+  if (tool === 'cursor' && e.shiftKey && !hidden && !(selected && handles(selected).some(([x,y]) => Math.hypot(x-m.x,y-m.y) < 12)) && !([...drawings].reverse().find(d => vis(d) && hit(d,m.x,m.y)))) setTool('measure');
   if (tool === 'cursor') {
     if (selected && !locked && !selected.lock && !hidden) {
       const h = handles(selected).findIndex(([x,y]) => Math.hypot(x-m.x,y-m.y) < 12);
       if (h >= 0) { drag = {mode:'handle', h, before:snap()}; return; }
     }
-    selected = hidden ? null : [...drawings].reverse().find(d => hit(d,m.x,m.y)) || null;
-    if (selected && !locked && !selected.lock) drag = {mode:'move', x:m.x, y:m.y, orig:selected.pts.map(p => ({i:t2i(p.t), y:Y(p.p)})), before:snap()};
+    const hd = hidden ? null : [...drawings].reverse().find(d => vis(d) && hit(d,m.x,m.y)) || null;
+    if ((e.metaKey || e.ctrlKey) && hd) { drag = {mode:'cmd', x:m.x, y:m.y, d:hd, before:snap()}; render(); return; }
+    if (!(hd && multi.length > 1 && multi.includes(hd))) multi = [];
+    selected = hd;
+    if (selected && !locked && !selected.lock) drag = {mode:'move', x:m.x, y:m.y, origs:grp().map(d => ({d, o:d.pts.map(p => ({i:t2i(p.t), y:Y(p.p)}))})), before:snap()};
     else drag = {mode:'pan', x:m.x, y:m.y, right, a:tr(yMin), b:tr(yMax)};
     render(); return;
   }
@@ -527,7 +619,7 @@ cv.addEventListener('pointerdown', e => {
 });
 function completeTwo() { if (draft.type === 'measure') { drag = null; draft.done = true; setTool('cursor', true); } else { addDrawing(draft); draft = null; setTool('cursor'); } }
 cv.addEventListener('pointermove', e => {
-  const m = pos(e); hover = m;
+  const m = pos(e); hover = m; invMag = e.metaKey || e.ctrlKey; altDown = e.altKey;
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, m);
   if (pinch && pointers.size === 2) { const [a,b] = [...pointers.values()]; barW = clampW(pinch.w * Math.hypot(a.x-b.x,a.y-b.y) / pinch.d); render(); return; }
   if (draft && !draft.done && draft.type !== 'brush') draft.pts[draft.pts.length-1] = pointAt(m.x, m.y);
@@ -539,7 +631,12 @@ cv.addEventListener('pointermove', e => {
     } else if (drag.mode === 'yscale') { const mid = (drag.a+drag.b)/2, half = (drag.b-drag.a)/2*Math.exp((m.y-drag.y)/250); const lo = itr(mid-half); if (cfg.log || lo > 0) { yMin = lo; yMax = itr(mid+half); } }
     else if (drag.mode === 'xscale') barW = clampW(drag.w * Math.exp((m.x-drag.x)/200));
     else if (drag.mode === 'brush') draft.pts.push({t:i2t(I(m.x)), p:P(m.y)});
-    else if (drag.mode === 'move') selected.pts = drag.orig.map(o => ({t:i2t(o.i + (m.x-drag.x)/barW), p:P(o.y + m.y-drag.y)}));
+    else if (drag.mode === 'move') {
+      let dx = m.x - drag.x, dy = m.y - drag.y;
+      if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }   // Shift: lock to one axis
+      drag.origs.forEach(({d, o}) => { if (!d.lock) d.pts = o.map(q => ({t:i2t(q.i + dx/barW), p:P(q.y + dy)})); });
+    }
+    else if (drag.mode === 'cmd') { if (Math.hypot(m.x-drag.x, m.y-drag.y) > 4) startClone(); }
     else if (drag.mode === 'handle') {
       const p = pointAt(m.x, m.y), s = selected;
       if (s.type === 'long' || s.type === 'short') {
@@ -559,6 +656,7 @@ function endPointer(e) {
   if (drag) {
     if (drag.mode === 'brush' && draft) { if (draft.pts.length > 1) addDrawing(draft); draft = null; setTool('cursor'); }
     else if (drag.mode === 'create' && draft && Math.hypot(m.x-drag.x, m.y-drag.y) > 8) completeTwo();
+    else if (drag.mode === 'cmd') toggleMulti(drag.d);
     else if ((drag.mode === 'move' || drag.mode === 'handle') && snap() !== drag.before) { remember(drag.before); persist(); }
     else if (drag.mode === 'zoom') { const a = I(Math.min(drag.x,m.x)), b = I(Math.max(drag.x,m.x)); if (b-a > 2) { barW = clampW(PW()/(b-a)); right = b; yAuto = true; } setTool('cursor'); }
     drag = null; render();
@@ -567,7 +665,7 @@ function endPointer(e) {
 cv.addEventListener('pointerup', endPointer);
 cv.addEventListener('pointercancel', endPointer);
 cv.addEventListener('pointerleave', () => { if (!drag) { hover = null; render(); } });
-cv.addEventListener('dblclick', e => { const m = pos(e); if (draft && draft.type === 'path') finishPath(); else if (m.x > PW()) { yAuto = true; render(); } else if (m.y > PH()) goLatest(); });
+cv.addEventListener('dblclick', e => { const m = pos(e); if (draft && draft.type === 'path') finishPath(); else if (m.x < PW() && m.y < PH() && !hidden && tool === 'cursor' && (() => { const d = [...drawings].reverse().find(d => vis(d) && hit(d,m.x,m.y)); if (d) { selected = d; render(); openDrawDlg(d); } return d; })()) return; else if (m.x > PW()) { yAuto = true; render(); } else if (m.y > PH()) goLatest(); });
 const clampW = w => Math.max(1.2, Math.min(80, w));
 const clampRight = r => Math.max(5, Math.min(view.length - 1 + PW()/barW - 5, r));
 cv.addEventListener('wheel', e => {
@@ -577,15 +675,20 @@ cv.addEventListener('wheel', e => {
   if (I(0) < 30) loadOlder(); render();
 }, {passive:false});
 addEventListener('keydown', e => {
-  if (/INPUT|SELECT/.test(e.target.tagName) || document.querySelector('dialog[open]')) return;
-  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? step(redoS,undoS) : step(undoS,redoS); }
-  else if ((e.key === 'Delete' || e.key === 'Backspace') && selected && !locked && !selected.lock) { e.preventDefault(); remember(); drawings = drawings.filter(d => d !== selected); selected = null; persist(); }
-  else if (e.key === 'Enter') finishPath();
-  else if (e.key === 'Escape') { draft = null; selected = null; setTool('cursor'); }
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || document.querySelector('dialog[open]')) return;
+  if (e.altKey && !e.metaKey && !e.ctrlKey && SHORT[e.code]) { e.preventDefault(); selected = null; setTool(SHORT[e.code]); toast(TOOLS.find(t => t && t[0] === SHORT[e.code])[1]); }
+  else if (e.key === '?') { buildKb(); $('kbDlg').showModal(); }
+  else if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase() === 'd' && selected) { e.preventDefault(); $('dbClone').click(); }
+  else if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? step(redoS,undoS) : step(undoS,redoS); }
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && grp().length) { e.preventDefault(); deleteGroup(); }
+  else if (e.key === 'Enter') { if (draft && draft.type === 'path') finishPath(); else if (selected) openDrawDlg(selected); }
+  else if (e.key === 'Escape') { draft = null; selected = null; multi = []; setTool('cursor'); }
 });
 
 /* ---------- left toolbar ---------- */
 const ic = p => `<svg viewBox="0 0 24 24">${p}</svg>`;
+const SHORT = {KeyC:'cursor', KeyT:'trend', KeyY:'ray', KeyH:'hline', KeyJ:'hray', KeyV:'vline', KeyF:'fib', KeyR:'rect', KeyP:'path', KeyL:'long', KeyS:'short', KeyB:'brush', KeyX:'text', KeyM:'measure', KeyZ:'zoom'};
+const SHORTBY = {}; Object.entries(SHORT).forEach(([c, t]) => SHORTBY[t] = c.slice(3));
 const TOOLS = [
   ['cursor','Cursor','<path d="M12 3v18M3 12h18"/>'],
   ['trend','Trend line','<path d="M5 19L19 5"/><circle cx="4" cy="20" r="1.5"/><circle cx="20" cy="4" r="1.5"/>'],
@@ -609,7 +712,7 @@ const TOOLS = [
   ['@hide','Hide drawings','<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/>'],
   ['@trash','Delete selected (or all)','<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>']
 ];
-$('side').innerHTML = TOOLS.map(t => t ? `<button data-t="${t[0]}" title="${t[1]}" aria-label="${t[1]}">${ic(t[2])}</button>` : '<hr>').join('');
+$('side').innerHTML = TOOLS.map(t => t ? `<button data-t="${t[0]}" title="${t[1]}${SHORTBY[t[0]] ? '  (Alt+' + SHORTBY[t[0]] + ')' : ''}" aria-label="${t[1]}">${ic(t[2])}</button>` : '<hr>').join('');
 function paintSide() {
   document.querySelectorAll('#side button').forEach(b => { const t = b.dataset.t; b.classList.toggle('on', t === tool || (t==='@magnet'&&magnet) || (t==='@lock'&&locked) || (t==='@hide'&&hidden)); });
 }
@@ -621,7 +724,7 @@ $('side').onclick = e => {
   else if (t === '@hide') { hidden = !hidden; selected = null; }
   else if (t === '@trash') {
     if (locked || (selected && selected.lock)) return toast('Unlock drawings first');
-    if (selected) { remember(); drawings = drawings.filter(d => d !== selected); selected = null; persist(); }
+    if (grp().length) { deleteGroup(); }
     else if (drawings.length && confirm('Delete all drawings on ' + cfg.symbol + '?')) { remember(); drawings = []; persist(); }
     draft = null;
   } else { selected = null; setTool(t); return; }
@@ -644,7 +747,7 @@ function bind(id, key) {
 [['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark']].forEach(a => bind(...a));
 function theme() {
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
-  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#drawBar{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
+  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#drawBar{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
 }
 $('indBtn').onclick = () => $('indDlg').showModal();
 $('setBtn').onclick = () => $('setDlg').showModal();
@@ -762,12 +865,12 @@ function fillBar(d) {
   $('dbW').value = closest.value; $('dbW').hidden = NOLINE.includes(t);
   $('dbDash').value = d.dash || 'solid'; $('dbDash').hidden = NOLINE.includes(t) || t === 'brush';
   $('dbSize').hidden = t !== 'text'; if (t === 'text') $('dbSize').value = String(d.size || 15);
-  $('dbEdit').hidden = t !== 'text';
+  $('dbEdit').hidden = !(t === 'text' || LABELABLE.includes(t));
   $('dbLock').textContent = d.lock ? '\u{1F512}' : '\u{1F513}';
   $('dbLock').title = d.lock ? 'Unlock this drawing' : 'Lock this drawing';
 }
 function updateDrawBar() {
-  if (!selected || hidden || draft || !drawings.includes(selected)) { DB.hidden = true; dbFor = null; return; }
+  if (!selected || hidden || draft || multi.length > 1 || !drawings.includes(selected)) { DB.hidden = true; dbFor = null; return; }
   if (dbFor !== selected) { dbFor = selected; fillBar(selected); }
   DB.hidden = false;
   const hs = handles(selected), ys = hs.map(h => h[1]), xs = hs.map(h => h[0]);
@@ -792,7 +895,8 @@ $('dbFill').oninput = e => styleChange(d => d.fill = +e.target.value / 100);
 $('dbW').onchange = e => styleChange(d => d.w = +e.target.value, d => ({w: d.w}));
 $('dbDash').onchange = e => styleChange(d => d.dash = e.target.value, d => ({dash: d.dash}));
 $('dbSize').onchange = e => styleChange(d => d.size = +e.target.value);
-$('dbEdit').onclick = () => { const d = selected; if (!d) return; const v = prompt('Text:', d.text); if (v) { remember(); d.text = v; persist(); } };
+$('dbEdit').onclick = () => { if (selected) openDrawDlg(selected, 'text'); };
+$('dbSet').onclick = () => { if (selected) openDrawDlg(selected); };
 $('dbLock').onclick = () => { const d = selected; if (!d) return; remember(); d.lock = !d.lock; fillBar(d); persist(); };
 $('dbClone').onclick = () => {
   const d = selected; if (!d) return; remember();
@@ -801,6 +905,121 @@ $('dbClone').onclick = () => {
   drawings.push(c); selected = c; persist();
 };
 $('dbDel').onclick = () => { const d = selected; if (!d) return; if (d.lock || locked) return toast('Unlock first'); remember(); drawings = drawings.filter(x => x !== d); selected = null; persist(); };
+
+/* ---------- pro shortcuts: multiselect, clone-drag, copy/paste, nudge, middle-click delete ---------- */
+function toggleMulti(d) {
+  let g = grp(); g = g.includes(d) ? g.filter(x => x !== d) : [...g, d];
+  multi = g.length > 1 ? g : []; selected = g[g.length - 1] || null;
+}
+function startClone() {
+  const d = drag.d; if (locked || d.lock) { drag = null; return; }
+  const src = multi.length > 1 && multi.includes(d) ? multi.filter(x => drawings.includes(x)) : [d];
+  const clones = src.map(x => { const c = JSON.parse(JSON.stringify(x)); delete c.lock; return c; });
+  drawings.push(...clones); selected = clones[src.indexOf(d)]; multi = clones.length > 1 ? clones : [];
+  drag = {mode:'move', x:drag.x, y:drag.y, before:drag.before, origs:clones.map(c => ({d:c, o:c.pts.map(p => ({i:t2i(p.t), y:Y(p.p)}))}))};
+}
+function deleteGroup() {
+  const g = grp().filter(d => !d.lock); if (!g.length || locked) return;
+  remember(); drawings = drawings.filter(d => !g.includes(d)); selected = null; multi = []; persist();
+}
+function nudge(dt, dy) {
+  const g = grp().filter(d => !d.lock); if (!g.length || locked) return;
+  remember(); g.forEach(d => d.pts = d.pts.map(p => ({t: p.t + dt, p: dy ? P(Y(p.p) + dy) : p.p}))); persist();
+}
+cv.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault(); });
+cv.addEventListener('pointerdown', e => {   // mouse wheel click removes the drawing under the cursor
+  if (e.button !== 1) return; e.preventDefault();
+  const m = pos(e); if (hidden || locked || m.x > PW() || m.y > PH()) return;
+  const d = [...drawings].reverse().find(d => vis(d) && hit(d,m.x,m.y));
+  if (d && !d.lock) { remember(); drawings = drawings.filter(x => x !== d); multi = multi.filter(x => x !== d); if (selected === d) selected = null; persist(); }
+});
+const modKeys = e => { invMag = e.metaKey || e.ctrlKey; altDown = e.altKey; if (hover) render(); };
+addEventListener('keyup', modKeys); addEventListener('blur', () => { invMag = altDown = false; });
+addEventListener('keydown', e => {
+  modKeys(e);
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName) || document.querySelector('dialog[open]')) return;
+  const mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
+  if (mod && e.altKey && e.code === 'KeyH') { e.preventDefault(); hidden = !hidden; selected = null; multi = []; paintSide(); render(); toast(hidden ? 'Drawings hidden' : 'Drawings visible'); }
+  else if (mod && k === 'c' && grp().length) { save('clip', JSON.parse(JSON.stringify(grp()))); toast('Copied'); }
+  else if (mod && k === 'v') {
+    const arr = load('clip', null); if (!arr || !arr.length || locked) return; e.preventDefault();
+    let dt = TFMS[cfg.tf] * 2, dp = 0;
+    if (hover && hover.x < PW() && hover.y < PH()) { const a = arr[0].pts[0], t = pointAt(hover.x, hover.y); dt = t.t - a.t; dp = t.p - a.p; }
+    remember(); arr.forEach(d => { delete d.lock; d.pts = d.pts.map(p => ({t: p.t + dt, p: Math.max(1e-9, p.p + dp)})); drawings.push(d); });
+    selected = arr[arr.length - 1]; multi = arr.length > 1 ? arr : []; persist();
+  }
+  else if (e.key.startsWith('Arrow') && grp().length) {
+    e.preventDefault(); const st = e.shiftKey ? 10 : 1;
+    if (e.key === 'ArrowLeft') nudge(-TFMS[cfg.tf] * (e.shiftKey ? 5 : 1), 0);
+    else if (e.key === 'ArrowRight') nudge(TFMS[cfg.tf] * (e.shiftKey ? 5 : 1), 0);
+    else nudge(0, e.key === 'ArrowUp' ? -st : st);
+  }
+});
+
+/* ---------- drawing settings dialog ---------- */
+const DNAMES = {trend:'Trend line', ray:'Ray', hline:'Horizontal line', hray:'Horizontal ray', vline:'Vertical line', fib:'Fib retracement', rect:'Rectangle', path:'Path', long:'Long position', short:'Short position', brush:'Brush', text:'Text', measure:'Measure'};
+const TFNAMES = [['1m','1 minute'],['5m','5 minutes'],['15m','15 minutes'],['30m','30 minutes'],['1h','1 hour'],['4h','4 hours'],['1d','Daily'],['1w','Weekly'],['1M','Monthly']];
+const toLocal = t => new Date(t - new Date(t).getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+let drD = null;
+function showTab(n) {
+  document.querySelectorAll('#drTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === n));
+  document.querySelectorAll('.drPane').forEach(p => p.classList.toggle('on', p.dataset.pane === n));
+}
+function openDrawDlg(d, tab) {
+  drD = d; const t = d.type, isText = t === 'text', L = d.label || {};
+  const fgDef = cfg.dark ? '#d1d4dc' : '#131722';
+  $('drTitle').textContent = DNAMES[t] || t;
+  const hasStyle = !isText && !(NOCOLOR.includes(t) && NOLINE.includes(t)) && t !== 'long' && t !== 'short' && t !== 'measure';
+  const canText = isText || LABELABLE.includes(t);
+  document.querySelector('#drTabs [data-tab=style]').hidden = !hasStyle;
+  document.querySelector('#drTabs [data-tab=text]').hidden = !canText;
+  $('rowColor').hidden = NOCOLOR.includes(t); $('rowW').hidden = NOLINE.includes(t); $('rowDash').hidden = NOLINE.includes(t) || t === 'brush'; $('rowFill').hidden = t !== 'rect';
+  $('drColor').value = d.color || '#2962ff';
+  const w = d.w || 1.6; $('drW').value = [...$('drW').options].reduce((a, o) => Math.abs(+o.value - w) < Math.abs(+a.value - w) ? o : a).value;
+  $('drDash').value = d.dash || 'solid'; $('drFill').value = Math.round((d.fill ?? .12) * 100);
+  const src = isText ? d : L;
+  $('drText').value = isText ? d.text || '' : L.text || '';
+  $('drTColor').value = src.color || (isText ? fgDef : d.color || '#2962ff');
+  $('drTSize').value = String(src.size || (isText ? 15 : 12));
+  $('drB').classList.toggle('on', !!src.bold); $('drI').classList.toggle('on', !!src.italic);
+  $('rowAlign').hidden = isText; $('drV').value = L.v || 'middle'; $('drH').value = L.h || 'center';
+  // coordinates
+  const names = t === 'long' || t === 'short' ? ['Entry', 'Target', 'Stop'] : d.pts.map((_, i) => d.pts.length > 2 ? 'Point ' + (i + 1) : ['Start', 'End'][i] || 'Point');
+  $('drCoords').innerHTML = d.pts.length > 40 ? '<small>Too many points to list.</small>' : d.pts.map((p, i) => `<div class="drRow"><span>${d.pts.length === 1 ? 'Position' : names[i]}</span>`
+    + (t === 'vline' ? '' : `<input type="number" step="any" data-i="${i}" data-k="p" value="${+p.p.toPrecision(10)}" title="Price">`)
+    + (t === 'hline' || t === 'long' && i > 0 || t === 'short' && i > 0 ? '' : `<input type="datetime-local" data-i="${i}" data-k="t" data-orig="${toLocal(p.t)}" value="${toLocal(p.t)}" title="Time">`) + '</div>').join('');
+  $('drVis').innerHTML = TFNAMES.map(([k, n]) => `<label class="drChk"><input type="checkbox" data-tf="${k}"${(d.hideTf || []).includes(k) ? '' : ' checked'}> ${n}</label>`).join('');
+  showTab(tab === 'text' && canText ? 'text' : hasStyle ? 'style' : canText ? 'text' : 'coords');
+  $('drDlg').showModal();
+}
+document.querySelectorAll('#drTabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('drB').onclick = () => $('drB').classList.toggle('on');
+$('drI').onclick = () => $('drI').classList.toggle('on');
+$('drX').onclick = $('drCancel').onclick = () => $('drDlg').close();
+$('drOk').onclick = () => {
+  const d = drD; if (!d) return; const t = d.type; remember();
+  if (!$('rowColor').hidden) d.color = $('drColor').value;
+  if (!$('rowW').hidden) d.w = +$('drW').value;
+  if (!$('rowDash').hidden) d.dash = $('drDash').value;
+  if (!$('rowFill').hidden) d.fill = +$('drFill').value / 100;
+  const st = {color: $('drTColor').value, size: +$('drTSize').value, bold: $('drB').classList.contains('on'), italic: $('drI').classList.contains('on')}, txt = $('drText').value;
+  if (t === 'text') { if (txt.trim()) d.text = txt; Object.assign(d, st); }
+  else if (LABELABLE.includes(t)) { if (txt.trim()) d.label = Object.assign({text: txt, v: $('drV').value, h: $('drH').value}, st); else delete d.label; }
+  document.querySelectorAll('#drCoords input').forEach(inp => {
+    const pt = d.pts[+inp.dataset.i]; if (!pt) return;
+    if (inp.dataset.k === 'p') { const v = +inp.value; if (isFinite(v) && v > 0 && inp.value !== '') pt.p = v; }
+    else if (inp.value && inp.value !== inp.dataset.orig) { const v = new Date(inp.value).getTime(); if (isFinite(v)) pt.t = v; }
+  });
+  const off = [...document.querySelectorAll('#drVis input')].filter(c => !c.checked).map(c => c.dataset.tf);
+  if (off.length) d.hideTf = off; else delete d.hideTf;
+  $('drDlg').close(); dbFor = null; persist();
+};
+function buildKb() {
+  const rows = [['Alt + T','Trend line'],['Alt + Y','Ray'],['Alt + H','Horizontal line'],['Alt + J','Horizontal ray'],['Alt + V','Vertical line'],['Alt + F','Fib retracement'],['Alt + R','Rectangle'],['Alt + P','Path'],['Alt + L / S','Long / Short position'],['Alt + B','Brush'],['Alt + X','Text'],['Alt + M','Measure'],['Alt + Z','Zoom'],['Alt + C','Cursor'],
+    ['Hold Alt','Demonstration cursor while drawing'],['Hold Shift + Click','Measure tool'],['Ctrl/Cmd + C','Copy selected object(s)'],['Ctrl/Cmd + V','Paste object(s) at cursor'],['Delete / Backspace / Wheel click','Remove object'],['Hold Ctrl/Cmd + Move a point','Temporarily toggle magnet'],['Ctrl/Cmd + Alt + H','Hide all drawings'],['Ctrl/Cmd + Drag','Clone a drawing'],['Hold Ctrl/Cmd + Click','Drawings multiselect'],['Drag + Shift','Move horizontally or vertically only'],['Arrow keys (Shift = bigger step)','Move selected drawing'],['Ctrl/Cmd + D','Clone selected drawing'],['Double-click / Enter','Drawing settings'],['Ctrl/Cmd + Z (+Shift)','Undo / Redo'],['Esc','Cancel / deselect'],['?','This list']];
+  $('kbTable').innerHTML = rows.map(r => `<tr><td>${r[1]}</td><td><kbd>${r[0]}</kbd></td></tr>`).join('');
+}
+$('kbBtn').onclick = () => { buildKb(); $('kbDlg').showModal(); };
 
 /* ---------- chart layouts ---------- */
 function announce(what) { if (PANE != null && parent !== window) parent.postMessage({cc:'sync', what, symbol:cfg.symbol, tf:cfg.tf, ctype:cfg.ctype, from:PANE}, '*'); }
@@ -836,15 +1055,71 @@ if (PANE == null) {
   };
   $('layBtn').innerHTML = '';
   const paintBtn = () => $('layBtn').innerHTML = icon(LAYOUTS[cur].t);
-  const frames = [];
+  const frames = [], G = 3;
+  let colFr = [], rowFr = [], spls = [];
+  const sum = a => a.reduce((x, y) => x + y, 0);
+  function applyFr() {
+    const box = $('panes');
+    box.style.gridTemplateColumns = colFr.map(f => `minmax(0,${f}fr)`).join(' ');
+    box.style.gridTemplateRows = rowFr.map(f => `minmax(0,${f}fr)`).join(' ');
+  }
+  function geom() {   // pixel start + size of every column / row
+    const box = $('panes'), aw = box.clientWidth - G * (colFr.length - 1), ah = box.clientHeight - G * (rowFr.length - 1), sc = sum(colFr), sr = sum(rowFr);
+    const cw = colFr.map(f => f / sc * aw), rh = rowFr.map(f => f / sr * ah), cx = [], ry = [];
+    let x = 0, y = 0; cw.forEach(w => { cx.push(x); x += w + G; }); rh.forEach(h => { ry.push(y); y += h + G; });
+    return {cw, rh, cx, ry, aw, ah, sc, sr};
+  }
+  function placeSplitters() {
+    if (!spls.length) return; const g = geom();
+    spls.forEach(s => {
+      if (s.axis === 'c') { s.el.style.left = (g.cx[s.i] + g.cw[s.i] + G / 2 - 5.5) + 'px'; s.el.style.top = g.ry[s.a] + 'px'; s.el.style.height = (g.ry[s.b] + g.rh[s.b] - g.ry[s.a]) + 'px'; }
+      else { s.el.style.top = (g.ry[s.i] + g.rh[s.i] + G / 2 - 5.5) + 'px'; s.el.style.left = g.cx[s.a] + 'px'; s.el.style.width = (g.cx[s.b] + g.cw[s.b] - g.cx[s.a]) + 'px'; }
+    });
+  }
+  function buildSplitters() {   // a handle only where two different charts actually touch
+    spls.forEach(s => s.el.remove()); spls = [];
+    const t = LAYOUTS[cur].t, R = t.length, C = t[0].length, box = $('panes');
+    const add = (axis, i, a, b) => { const el = document.createElement('div'); el.className = 'spl ' + (axis === 'c' ? 'v' : 'h'); el.title = 'Drag to resize · double-click to reset'; box.append(el); const s = {el, axis, i, a, b}; spls.push(s); wireSplitter(s); };
+    for (let c = 0; c < C - 1; c++) for (let r = 0; r < R; r++) {
+      if (t[r][c] === t[r][c + 1]) continue; let r2 = r; while (r2 + 1 < R && t[r2 + 1][c] !== t[r2 + 1][c + 1]) r2++; add('c', c, r, r2); r = r2;
+    }
+    for (let r = 0; r < R - 1; r++) for (let c = 0; c < C; c++) {
+      if (t[r][c] === t[r + 1][c]) continue; let c2 = c; while (c2 + 1 < C && t[r][c2 + 1] !== t[r + 1][c2 + 1]) c2++; add('r', r, c, c2); c = c2;
+    }
+    placeSplitters();
+  }
+  function wireSplitter(s) {
+    const el = s.el;
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('act'); $('panes').classList.add('dragging');
+      const arr = s.axis === 'c' ? colFr : rowFr, g = geom(), start = arr.slice(), p0 = s.axis === 'c' ? e.clientX : e.clientY;
+      const perFr = s.axis === 'c' ? g.sc / g.aw : g.sr / g.ah, min = sum(arr) / arr.length * .15;
+      el.onpointermove = ev => {
+        let d = ((s.axis === 'c' ? ev.clientX : ev.clientY) - p0) * perFr;
+        if (start[s.i] + d < min) d = min - start[s.i];
+        if (start[s.i + 1] - d < min) d = start[s.i + 1] - min;
+        arr[s.i] = start[s.i] + d; arr[s.i + 1] = start[s.i + 1] - d; applyFr(); placeSplitters();
+      };
+      el.onpointerup = el.onpointercancel = () => {
+        el.onpointermove = el.onpointerup = el.onpointercancel = null; el.classList.remove('act'); $('panes').classList.remove('dragging');
+        const all = load('layFr', {}); all[cur] = {c: colFr.slice(), r: rowFr.slice()}; save('layFr', all);
+      };
+    });
+    el.addEventListener('dblclick', () => {
+      colFr = colFr.map(() => 1); rowFr = rowFr.map(() => 1); applyFr(); placeSplitters();
+      const all = load('layFr', {}); delete all[cur]; save('layFr', all);
+    });
+  }
+  new ResizeObserver(placeSplitters).observe($('panes'));
   function apply() {
     const lay = LAYOUTS[cur], box = $('panes');
     save('layout', cur); paintBtn();
-    if (lay.n === 1) { document.body.classList.remove('multi'); box.innerHTML = ''; frames.length = 0; setTimeout(() => window.dispatchEvent(new Event('resize')), 0); return; }
+    if (lay.n === 1) { document.body.classList.remove('multi'); box.innerHTML = ''; frames.length = 0; spls = []; setTimeout(() => window.dispatchEvent(new Event('resize')), 0); return; }
     document.body.classList.add('multi');
     box.style.gridTemplateAreas = lay.t.map(r => `"${[...r].join(' ')}"`).join(' ');
-    box.style.gridTemplateColumns = `repeat(${lay.t[0].length}, minmax(0,1fr))`;
-    box.style.gridTemplateRows = `repeat(${lay.t.length}, minmax(0,1fr))`;
+    const C = lay.t[0].length, R = lay.t.length, sv = load('layFr', {})[cur];
+    colFr = sv && sv.c && sv.c.length === C ? sv.c.slice() : Array(C).fill(1);
+    rowFr = sv && sv.r && sv.r.length === R ? sv.r.slice() : Array(R).fill(1);
     while (frames.length > lay.n) frames.pop().remove();
     while (frames.length < lay.n) {
       const f = document.createElement('iframe'), i = frames.length;
@@ -853,6 +1128,7 @@ if (PANE == null) {
       box.append(f); frames.push(f);
     }
     frames.forEach((f, i) => f.style.gridArea = String.fromCharCode(97 + i));
+    applyFr(); buildSplitters();
     if (lay.n > 4) frames.forEach(f => { try { f.contentDocument.body.classList.add('tight'); } catch {} }); else frames.forEach(f => { try { f.contentDocument.body.classList.remove('tight'); } catch {} });
   }
   window.addEventListener('message', e => {
