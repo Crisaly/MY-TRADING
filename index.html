@@ -592,7 +592,7 @@ cv.addEventListener('pointerdown', e => {
   if (tool === 'cursor') {
     if (selected && !locked && !selected.lock && !hidden) {
       const h = handles(selected).findIndex(([x,y]) => Math.hypot(x-m.x,y-m.y) < 12);
-      if (h >= 0) { drag = {mode:'handle', h, before:snap()}; return; }
+      if (h >= 0) { const hp = handles(selected)[h]; drag = {mode:'handle', h, hx:hp[0], hy:hp[1], x:m.x, y:m.y, before:snap()}; return; }
     }
     const hd = hidden ? null : [...drawings].reverse().find(d => vis(d) && hit(d,m.x,m.y)) || null;
     if ((e.metaKey || e.ctrlKey) && hd) { drag = {mode:'cmd', x:m.x, y:m.y, d:hd, before:snap()}; render(); return; }
@@ -639,6 +639,9 @@ cv.addEventListener('pointermove', e => {
     else if (drag.mode === 'cmd') { if (Math.hypot(m.x-drag.x, m.y-drag.y) > 4) startClone(); }
     else if (drag.mode === 'handle') {
       const p = pointAt(m.x, m.y), s = selected;
+      if (e.shiftKey) {   // Shift: keep the point on the same horizontal or vertical line it started on
+        if (Math.abs(m.x - drag.x) > Math.abs(m.y - drag.y)) p.p = P(drag.hy); else p.t = i2t(I(drag.hx));
+      }
       if (s.type === 'long' || s.type === 'short') {
         const dir = s.type === 'long' ? 1 : -1, [en,tg,st] = s.pts;
         if (drag.h === 0) { const d = t2i(p.t)-t2i(en.t); s.pts = [p, {t:i2t(t2i(tg.t)+d), p:tg.p+p.p-en.p}, {t:p.t, p:st.p+p.p-en.p}]; }
