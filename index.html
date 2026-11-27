@@ -196,6 +196,7 @@ body.domOn #dom{display:flex}
   <button id="replayBtn">⏪ Replay</button>
   <span id="replayCtl" hidden><button id="rPlay">▶ Play</button><button id="rStep">Step ›</button><button id="rExit">Exit</button></span>
   <button id="domBtn" title="Depth of market ladder">☰ DOM</button>
+  <button id="hmBtn" title="Liquidity heatmap (order book history)">🔥 Heatmap</button>
   <span class="sep"></span>
   <button id="undo" title="Undo">↶</button><button id="redo" title="Redo">↷</button>
   <span class="grow keep"></span>
@@ -320,6 +321,8 @@ body.domOn #dom{display:flex}
   <label>Grid lines <input type="checkbox" id="grid"></label>
   <label>Log price scale <input type="checkbox" id="logS"></label>
   <label>Dark mode <input type="checkbox" id="dark"></label>
+  <label>Heatmap sensitivity (%) <input type="number" id="hmGain" value="100" min="2"></label>
+  <label>Heatmap: mark large resting orders <input type="checkbox" id="hmLines"></label>
   <label>Footprint imbalance (×) <input type="number" id="fpImb" value="3" min="2"></label>
   <label>Footprint Δ / volume labels <input type="checkbox" id="fpStat"></label>
   <div class="row"><button class="pri">Done</button></div></form></dialog>
@@ -334,7 +337,7 @@ const PANE = (() => { const v = new URLSearchParams(location.search).get('pane')
 const CFGKEY = PANE ? 'cfg_p' + PANE : 'cfg';
 if (PANE != null) { document.body.classList.add('pane'); if (new URLSearchParams(location.search).get('tight')) document.body.classList.add('tight'); }
 const cfg = Object.assign({symbol:'BTCUSDT', tf:'1d', ctype:'candle', up:'#d6d6d6', dn:'#f29d38', grid:false, log:false, dark:false,
-  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false, vpOn:false, vpMode:'visible'}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
+  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false, hm:false, hmGain:100, hmLines:true, vpOn:false, vpMode:'visible'}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
 /* timeframes: Binance-native intervals are fetched directly; any custom one (7s, 7m, 90m, 5h, 3d, 2w …) is built by aggregating a smaller native interval */
 const NATIVE = {'1s':1e3,'1m':6e4,'3m':18e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,'12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
 const UNIT = {s:1e3, m:6e4, h:36e5, d:864e5, w:6048e5};
@@ -574,6 +577,7 @@ function paint() {
     if (x < PW()-20) { ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.fillText(label, x, PH()+14); }
   }
   ctx.save(); ctx.beginPath(); ctx.rect(0,0,PW(),PH()); ctx.clip();
+  if (cfg.hm && PANE == null) drawHM();
   if (cfg.vpOn) drawVP(first, last);
   // volume
   if (cfg.volOn) {
@@ -625,7 +629,7 @@ function paint() {
   // legend
   const hi = hover ? Math.round(I(hover.x)) : view.length-1, c = view[hi] || lc, ch = (c.c-c.o)/c.o*100;
   $('legend').textContent = `${cfg.symbol} · ${$('tf').selectedOptions[0].text}  O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}  (${ch>=0?'+':''}${ch.toFixed(2)}%)`
-    + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '') + fpLegend(hi);
+    + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '') + fpLegend(hi) + hmLegend();
   updateDrawBar();
 }
 
@@ -995,7 +999,7 @@ function bind(id, key) {
   el[isC ? 'checked' : 'value'] = cfg[key];
   el.oninput = () => { cfg[key] = isC ? el.checked : el.type === 'number' ? Math.max(2, Math.round(+el.value) || 2) : el.value; if (key === 'log') yAuto = true; theme(); saveCfg(); };
 }
-[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['vpMode','vpMode'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['fpStat','fpStat']].forEach(a => bind(...a));
+[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['vpMode','vpMode'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['hmGain','hmGain'],['hmLines','hmLines'],['fpStat','fpStat']].forEach(a => bind(...a));
 function theme() {
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
   s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}#tplMenu{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#tplMenu hr{border-color:#2a2e39}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#symChips button{background:#2a2e39;color:#d1d4dc}#symChips button.on{background:#d1d4dc;color:#131722}.symRow.act{background:#2a2e39}.symTag{background:#2a2e39;color:#d1d4dc}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
@@ -1794,7 +1798,7 @@ function fpLegend(hi) {
 }
 
 /* ---------- DOM ladder ---------- */
-const DOMS = {on:false, sym:null, gen:0, ws:null, ready:false, buf:[], last:0, bids:new Map(), asks:new Map(), tick:0, off:0, acc:0, k:0, kEff:1};
+const DOMS = {lim:0, on:false, sym:null, gen:0, ws:null, ready:false, buf:[], last:0, bids:new Map(), asks:new Map(), tick:0, off:0, acc:0, k:0, kEff:1};
 let dctx = null, DW = 0, DH = 0;
 const KSTEPS = []; for (let e = 0; e < 9; e++) [1, 2, 5].forEach(m => KSTEPS.push(m * 10 ** e));
 function domStop() {
@@ -1803,7 +1807,7 @@ function domStop() {
 }
 function domRestart() { DOMS.sym = null; render(); }   // domSync() (from paint) starts it again
 async function domStart() {
-  domStop(); DOMS.on = true; const sym = DOMS.sym = cfg.symbol, g = DOMS.gen;
+  domStop(); DOMS.on = true; DOMS.lim = cfg.hm ? 5000 : 1000; const sym = DOMS.sym = cfg.symbol, g = DOMS.gen;
   DOMS.off = 0; DOMS.k = load('domK_' + sym, 0);
   const tick = await tickOf(sym); if (g !== DOMS.gen) return; DOMS.tick = tick;
   const sock = DOMS.ws = new WebSocket(`${WS}${sym.toLowerCase()}@depth@100ms`);
@@ -1811,7 +1815,7 @@ async function domStart() {
   sock.onclose = () => { if (g === DOMS.gen && DOMS.on) setTimeout(() => { if (g === DOMS.gen && DOMS.on) domRestart(); }, 2000); };
   sock.onopen = async () => {
     try {
-      const s = await rj(`/api/v3/depth?symbol=${sym}&limit=1000`); if (g !== DOMS.gen) return;
+      const s = await rj(`/api/v3/depth?symbol=${sym}&limit=${DOMS.lim}`); if (g !== DOMS.gen) return;
       DOMS.bids = new Map(s.bids.map(([p, q]) => [+p, +q])); DOMS.asks = new Map(s.asks.map(([p, q]) => [+p, +q])); DOMS.last = s.lastUpdateId;
       const buf = DOMS.buf; DOMS.buf = []; DOMS.ready = true; buf.forEach(m => domApply(m, g)); render();
     } catch { if (g === DOMS.gen) setTimeout(() => { if (g === DOMS.gen && DOMS.on) domRestart(); }, 3000); }
@@ -1825,9 +1829,9 @@ function domApply(m, g) {   // Binance rule: drop old events, resync on a gap
   DOMS.last = m.u; render();
 }
 function domSync() {
-  const want = !!cfg.dom && PANE == null;
-  document.body.classList.toggle('domOn', want); $('domBtn').classList.toggle('on', want);
-  if (want) { if (!DOMS.on || DOMS.sym !== cfg.symbol) domStart(); } else if (DOMS.on) domStop();
+  const panel = !!cfg.dom && PANE == null, want = (panel || !!cfg.hm) && PANE == null;
+  document.body.classList.toggle('domOn', panel); $('domBtn').classList.toggle('on', panel); $('hmBtn').classList.toggle('on', !!cfg.hm && PANE == null);
+  if (want) { if (!DOMS.on || DOMS.sym !== cfg.symbol || DOMS.lim < (cfg.hm ? 5000 : 1000)) domStart(); } else if (DOMS.on) domStop();
 }
 function domGroup(dir) {
   let i = KSTEPS.findIndex(x => x >= (DOMS.kEff || 1)); if (i < 0) i = KSTEPS.length - 1;
@@ -1930,6 +1934,92 @@ function drawVP(first, last) {
     if (P) vpDraw(P, PW(), -1, maxW, 0, PW(), true, PW() - maxW - 6, 'right');
   }
 }
+
+
+/* ---------- liquidity heatmap: the order book recorded over time (Binance has no depth history, so it builds from when you open the page) ---------- */
+const HM = {sym:null, step:0, snaps:[], tracks:[], act:new Map(), key:'', cv:null};
+function hmRecord() {   // once per second: store a snapshot of the book and track big resting orders
+  if (PANE != null || !cfg.hm || !DOMS.ready || DOMS.sym !== cfg.symbol || !DOMS.tick) return;
+  if (HM.sym !== cfg.symbol) Object.assign(HM, {sym:cfg.symbol, step:0, snaps:[], tracks:[], act:new Map(), key:''});
+  let bb = 0, ba = Infinity;
+  for (const p of DOMS.bids.keys()) if (p > bb) bb = p;
+  for (const p of DOMS.asks.keys()) if (p < ba) ba = p;
+  if (!bb || ba === Infinity) return;
+  const mid = (bb + ba) / 2, t = Date.now();
+  if (!HM.step) { const want = mid * 4e-5 / DOMS.tick; HM.step = DOMS.tick * (KSTEPS.find(x => x >= want) || 1); }
+  const st = HM.step, lim = mid * .012, a = mid - lim, b = mid + lim; let lo = Infinity, hi = -Infinity;
+  for (const m of [DOMS.bids, DOMS.asks]) for (const p of m.keys()) if (p >= a && p <= b) { const k = Math.floor(p / st + 1e-9); if (k < lo) lo = k; if (k > hi) hi = k; }
+  if (lo > hi) return;
+  const n = hi - lo + 1, arr = new Float32Array(n);
+  for (const m of [DOMS.bids, DOMS.asks]) for (const [p, q] of m) if (p >= a && p <= b) arr[Math.floor(p / st + 1e-9) - lo] += q;
+  HM.snaps.push({t, g0:lo, n, arr}); if (HM.snaps.length > 7200) HM.snaps.shift();     // ~2 hours at 1 snapshot/second
+  // large resting orders: a row far above the rest of the book, followed while it stays there
+  const nz = []; for (let k = 0; k < n; k++) if (arr[k]) nz.push(arr[k]);
+  if (nz.length >= 8) {
+    nz.sort((x, y) => x - y);
+    const thr = Math.max(nz[Math.floor(.97 * (nz.length - 1))], 5 * nz[nz.length >> 1]);
+    for (let k = 0; k < n; k++) {
+      const v = arr[k]; if (!v) continue; const idx = lo + k, tk = HM.act.get(idx);
+      if (tk) { if (v >= thr * .6) { tk.t1 = t; tk.q = v; tk.peak = Math.max(tk.peak, v); tk.miss = 0; } }
+      else if (v >= thr) { const o = {idx, t0:t, t1:t, q:v, peak:v, miss:0, bid:(idx + .5) * st < mid, on:true}; HM.act.set(idx, o); HM.tracks.push(o); }
+    }
+    for (const [idx, tk] of HM.act) if (tk.t1 !== t && ++tk.miss >= 3) { tk.on = false; HM.act.delete(idx); }   // pulled or filled
+    if (HM.tracks.length > 600) HM.tracks = HM.tracks.slice(-500);
+  }
+  render();
+}
+setInterval(hmRecord, 1000);
+function hmColor(t) {   // blue -> cyan -> yellow -> red, more opaque as it gets hotter
+  const S = [[0, 20, 40, 160, 0], [.25, 20, 60, 190, .45], [.5, 0, 175, 200, .65], [.75, 250, 220, 50, .8], [1, 235, 40, 40, .92]];
+  for (let i = 1; i < S.length; i++) if (t <= S[i][0]) { const a = S[i-1], b = S[i], f = (t - a[0]) / (b[0] - a[0]); return [a[1] + (b[1]-a[1]) * f, a[2] + (b[2]-a[2]) * f, a[3] + (b[3]-a[3]) * f, (a[4] + (b[4]-a[4]) * f) * 255]; }
+  return [235, 40, 40, 235];
+}
+function hmBuild(cols, rows, cw, rh) {
+  const S = HM.snaps, st = HM.step, vals = new Float32Array(cols * rows);
+  for (let c = 0; c < cols; c++) {
+    const t = i2t(I(c * cw + cw / 2)); let l = 0, h = S.length - 1, idx = -1;
+    while (l <= h) { const m = (l + h) >> 1; if (S[m].t <= t) { idx = m; l = m + 1; } else h = m - 1; }
+    if (idx < 0) continue; const sn = S[idx]; if (t > sn.t + 2500) continue;
+    for (let r = 0; r < rows; r++) {
+      const i0 = Math.floor(P((r + 1) * rh) / st) - sn.g0, i1 = Math.floor(P(r * rh) / st) - sn.g0; let v = 0;
+      for (let k = Math.max(0, i0); k <= Math.min(sn.n - 1, i1); k++) if (sn.arr[k] > v) v = sn.arr[k];
+      vals[c * rows + r] = v;
+    }
+  }
+  const nzv = vals.filter(x => x > 0).sort(); if (!nzv.length) { HM.cv = null; return; }
+  const vmax = Math.max(1e-9, nzv[Math.floor((nzv.length - 1) * .985)] * (100 / (cfg.hmGain || 100)));
+  const cv = HM.cv = HM.cv || document.createElement('canvas'); cv.width = cols; cv.height = rows;
+  const g = cv.getContext('2d'), img = g.createImageData(cols, rows), d = img.data;
+  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+    const v = vals[c * rows + r]; if (!v) continue;
+    const col = hmColor(Math.min(1, Math.sqrt(v / vmax))), o = (r * cols + c) * 4; d[o] = col[0]; d[o+1] = col[1]; d[o+2] = col[2]; d[o+3] = col[3];
+  }
+  g.putImageData(img, 0, 0);
+}
+function drawHM() {
+  if (HM.sym !== cfg.symbol || !HM.snaps.length) return;
+  const cw = 3, rh = 4, cols = Math.ceil(PW() / cw), rows = Math.ceil(PH() / rh);
+  const key = [yMin, yMax, barW, right, PW(), PH(), HM.snaps.length, cfg.hmGain, cfg.log, view.length].join('|');
+  if (HM.key !== key) { HM.key = key; hmBuild(cols, rows, cw, rh); }
+  if (HM.cv) { ctx.imageSmoothingEnabled = false; ctx.drawImage(HM.cv, 0, 0, cols * cw, rows * rh); ctx.imageSmoothingEnabled = true; }
+  if (cfg.hmLines === false) return;
+  const st = HM.step, list = []; let mxp = 0;
+  for (const tk of HM.tracks) {
+    if (tk.t1 - tk.t0 < 8000) continue;                                   // ignore flickers shorter than 8s
+    const x1 = X(t2i(tk.t0)), x2 = tk.on ? PW() : X(t2i(tk.t1)), y = Y((tk.idx + .5) * st);
+    if (x2 < 0 || x1 > PW() || y < 0 || y > PH()) continue;
+    list.push([tk, x1, x2, y]); mxp = Math.max(mxp, tk.peak);
+  }
+  ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'right';
+  for (const [tk, x1, x2, y] of list) {
+    const f = Math.min(1, tk.peak / mxp), col = tk.bid ? '53,98,246' : '224,72,77';
+    ctx.strokeStyle = `rgba(${col},${.4 + .55 * f})`; ctx.lineWidth = 1 + 2.5 * f; line(Math.max(0, x1), y, x2, y);
+    if (tk.on && f > .3) { ctx.fillStyle = `rgb(${col})`; ctx.fillText(fmtQ(tk.q), PW() - 4, y - 7); }
+  }
+  ctx.lineWidth = 1; ctx.font = '12px -apple-system,sans-serif'; ctx.textAlign = 'left';
+}
+function hmLegend() { return cfg.hm && PANE == null && HM.snaps.length < 3 ? '  · heatmap: collecting order book…' : ''; }
+$('hmBtn').onclick = () => { cfg.hm = !cfg.hm; saveCfg(); };
 
 /* ---------- start ---------- */
 new ResizeObserver(() => {
