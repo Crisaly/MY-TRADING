@@ -323,7 +323,6 @@ body.domOn #dom{display:flex}
   <label>Dark mode <input type="checkbox" id="dark"></label>
   <label>Heatmap sensitivity (%) <input type="number" id="hmGain" value="100" min="2"></label>
   <label>Heatmap: mark large resting orders <input type="checkbox" id="hmLines"></label>
-  <label>Heatmap: trade bubbles <input type="checkbox" id="hmBub"></label>
   <label>Footprint imbalance (×) <input type="number" id="fpImb" value="3" min="2"></label>
   <label>Footprint Δ / volume labels <input type="checkbox" id="fpStat"></label>
   <div class="row"><button class="pri">Done</button></div></form></dialog>
@@ -338,7 +337,7 @@ const PANE = (() => { const v = new URLSearchParams(location.search).get('pane')
 const CFGKEY = PANE ? 'cfg_p' + PANE : 'cfg';
 if (PANE != null) { document.body.classList.add('pane'); if (new URLSearchParams(location.search).get('tight')) document.body.classList.add('tight'); }
 const cfg = Object.assign({symbol:'BTCUSDT', tf:'1d', ctype:'candle', up:'#d6d6d6', dn:'#f29d38', grid:false, log:false, dark:false,
-  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false, hm:false, hmGain:100, hmLines:true, hmBub:true, vpOn:false, vpMode:'visible'}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
+  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false, hm:false, hmGain:100, hmLines:true, vpOn:false, vpMode:'visible'}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
 /* timeframes: Binance-native intervals are fetched directly; any custom one (7s, 7m, 90m, 5h, 3d, 2w …) is built by aggregating a smaller native interval */
 const NATIVE = {'1s':1e3,'1m':6e4,'3m':18e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,'12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
 const UNIT = {s:1e3, m:6e4, h:36e5, d:864e5, w:6048e5};
@@ -593,7 +592,7 @@ function paint() {
   // candles
   const bw = Math.max(1, Math.floor(barW*.72));
   if (cfg.ctype === 'line') {
-    ctx.strokeStyle = cfg.hm ? '#f2f7ff' : '#3562f6'; ctx.lineWidth = cfg.hm ? 1.2 : 2; ctx.beginPath();
+    ctx.strokeStyle = '#3562f6'; ctx.lineWidth = 2; ctx.beginPath();
     for (let i = first; i <= last; i++) i === first ? ctx.moveTo(X(i),Y(view[i].c)) : ctx.lineTo(X(i),Y(view[i].c));
     ctx.stroke(); ctx.lineWidth = 1;
   } else for (let i = first; i <= last; i++) {
@@ -1003,7 +1002,7 @@ function bind(id, key) {
   el[isC ? 'checked' : 'value'] = cfg[key];
   el.oninput = () => { cfg[key] = isC ? el.checked : el.type === 'number' ? Math.max(2, Math.round(+el.value) || 2) : el.value; if (key === 'log') yAuto = true; theme(); saveCfg(); };
 }
-[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['vpMode','vpMode'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['hmGain','hmGain'],['hmLines','hmLines'],['hmBub','hmBub'],['fpStat','fpStat']].forEach(a => bind(...a));
+[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['vpMode','vpMode'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['hmGain','hmGain'],['hmLines','hmLines'],['fpStat','fpStat']].forEach(a => bind(...a));
 function theme() {
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
   s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}#tplMenu{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#tplMenu hr{border-color:#2a2e39}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#symChips button{background:#2a2e39;color:#d1d4dc}#symChips button.on{background:#d1d4dc;color:#131722}.symRow.act{background:#2a2e39}.symTag{background:#2a2e39;color:#d1d4dc}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
@@ -1970,10 +1969,10 @@ function drawVP(first, last) {
 
 
 /* ---------- liquidity heatmap: the order book recorded over time (Binance has no depth history, so it builds from when you open the page) ---------- */
-const HM = {sym:null, step:0, snaps:[], tracks:[], act:new Map(), key:'', cv:null, trades:[], tws:null, tsym:null, tgen:0};
+const HM = {sym:null, step:0, snaps:[], tracks:[], act:new Map(), key:'', cv:null};
 function hmRecord() {   // once per second: store a snapshot of the book and track big resting orders
   if (PANE != null || !cfg.hm || !DOMS.ready || DOMS.sym !== cfg.symbol || !DOMS.tick) return;
-  if (HM.sym !== cfg.symbol) Object.assign(HM, {sym:cfg.symbol, step:0, snaps:[], tracks:[], act:new Map(), key:'', trades:[]});
+  if (HM.sym !== cfg.symbol) Object.assign(HM, {sym:cfg.symbol, step:0, snaps:[], tracks:[], act:new Map(), key:''});
   let bb = 0, ba = Infinity;
   for (const p of DOMS.bids.keys()) if (p > bb) bb = p;
   for (const p of DOMS.asks.keys()) if (p < ba) ba = p;
@@ -1985,7 +1984,7 @@ function hmRecord() {   // once per second: store a snapshot of the book and tra
   if (lo > hi) return;
   const n = hi - lo + 1, arr = new Float32Array(n);
   for (const m of [DOMS.bids, DOMS.asks]) for (const [p, q] of m) if (p >= a && p <= b) arr[Math.floor(p / st + 1e-9) - lo] += q;
-  HM.snaps.push({t, g0:lo, n, arr}); if (HM.snaps.length > 14400) HM.snaps.shift();    // ~2 hours at 2 snapshots/second
+  HM.snaps.push({t, g0:lo, n, arr}); if (HM.snaps.length > 7200) HM.snaps.shift();     // ~2 hours at 1 snapshot/second
   // large resting orders: a row far above the rest of the book, followed while it stays there
   const nz = []; for (let k = 0; k < n; k++) if (arr[k]) nz.push(arr[k]);
   if (nz.length >= 8) {
@@ -1996,117 +1995,60 @@ function hmRecord() {   // once per second: store a snapshot of the book and tra
       if (tk) { if (v >= thr * .6) { tk.t1 = t; tk.q = v; tk.peak = Math.max(tk.peak, v); tk.miss = 0; } }
       else if (v >= thr) { const o = {idx, t0:t, t1:t, q:v, peak:v, miss:0, bid:(idx + .5) * st < mid, on:true}; HM.act.set(idx, o); HM.tracks.push(o); }
     }
-    for (const [idx, tk] of HM.act) if (tk.t1 !== t && ++tk.miss >= 6) { tk.on = false; HM.act.delete(idx); }   // pulled or filled
+    for (const [idx, tk] of HM.act) if (tk.t1 !== t && ++tk.miss >= 3) { tk.on = false; HM.act.delete(idx); }   // pulled or filled
     if (HM.tracks.length > 600) HM.tracks = HM.tracks.slice(-500);
   }
   render();
 }
-setInterval(hmRecord, 500);
-setInterval(() => { try { hmTrades(); } catch {} }, 1000);
-$('hmBtn').addEventListener('click', () => setTimeout(() => { try { hmTrades(); } catch {} }, 0));
-const HM_STOPS = [[0, 9, 24, 41], [.14, 13, 52, 92], [.30, 22, 104, 160], [.46, 70, 168, 222], [.60, 226, 242, 255], [.72, 250, 226, 40], [.86, 246, 120, 24], [1, 232, 36, 20]];
-const HM_BASE = [9, 24, 41];     // the "empty" background colour of the book
-function hmColor(t) {
-  const S = HM_STOPS;
-  for (let i = 1; i < S.length; i++) if (t <= S[i][0]) { const a = S[i-1], b = S[i], f = (t - a[0]) / (b[0] - a[0]); return [a[1] + (b[1]-a[1]) * f, a[2] + (b[2]-a[2]) * f, a[3] + (b[3]-a[3]) * f, 255]; }
-  return [232, 36, 20, 255];
+setInterval(hmRecord, 1000);
+function hmColor(t) {   // blue -> cyan -> yellow -> red, more opaque as it gets hotter
+  const S = [[0, 20, 40, 160, 0], [.25, 20, 60, 190, .45], [.5, 0, 175, 200, .65], [.75, 250, 220, 50, .8], [1, 235, 40, 40, .92]];
+  for (let i = 1; i < S.length; i++) if (t <= S[i][0]) { const a = S[i-1], b = S[i], f = (t - a[0]) / (b[0] - a[0]); return [a[1] + (b[1]-a[1]) * f, a[2] + (b[2]-a[2]) * f, a[3] + (b[3]-a[3]) * f, (a[4] + (b[4]-a[4]) * f) * 255]; }
+  return [235, 40, 40, 235];
 }
 function hmBuild(cols, rows, cw, rh) {
-  const S = HM.snaps, st = HM.step, vals = new Float32Array(cols * rows), cov = new Uint8Array(cols);
-  const find = t => { let l = 0, h = S.length - 1, idx = -1; while (l <= h) { const m = (l + h) >> 1; if (S[m].t <= t) { idx = m; l = m + 1; } else h = m - 1; } return idx; };
+  const S = HM.snaps, st = HM.step, vals = new Float32Array(cols * rows);
   for (let c = 0; c < cols; c++) {
-    const tA = i2t(I(c * cw)), tB = i2t(I((c + 1) * cw));
-    let a = find(Math.min(tA, tB)), b = find(Math.max(tA, tB));
-    if (b < 0) continue; if (a < 0) a = 0;
-    if (Math.min(tA, tB) > S[b].t + 3000) continue;                 // no recording here (the book is only kept from when the page was opened)
-    cov[c] = 1;
-    for (let q = a; q <= b; q++) {                                    // strongest resting size in the column's time window, so thin orders don't vanish when zoomed out
-      const sn = S[q];
-      for (let r = 0; r < rows; r++) {
-        const i0 = Math.floor(P((r + 1) * rh) / st) - sn.g0, i1 = Math.floor(P(r * rh) / st) - sn.g0; let v = vals[c * rows + r];
-        for (let k = Math.max(0, i0); k <= Math.min(sn.n - 1, i1); k++) if (sn.arr[k] > v) v = sn.arr[k];
-        vals[c * rows + r] = v;
-      }
-      if (b - a > 40) q += Math.floor((b - a) / 40);                  // zoomed far out: sample ~40 snapshots per column
+    const t = i2t(I(c * cw + cw / 2)); let l = 0, h = S.length - 1, idx = -1;
+    while (l <= h) { const m = (l + h) >> 1; if (S[m].t <= t) { idx = m; l = m + 1; } else h = m - 1; }
+    if (idx < 0) continue; const sn = S[idx]; if (t > sn.t + 2500) continue;
+    for (let r = 0; r < rows; r++) {
+      const i0 = Math.floor(P((r + 1) * rh) / st) - sn.g0, i1 = Math.floor(P(r * rh) / st) - sn.g0; let v = 0;
+      for (let k = Math.max(0, i0); k <= Math.min(sn.n - 1, i1); k++) if (sn.arr[k] > v) v = sn.arr[k];
+      vals[c * rows + r] = v;
     }
   }
   const nzv = vals.filter(x => x > 0).sort(); if (!nzv.length) { HM.cv = null; return; }
   const vmax = Math.max(1e-9, nzv[Math.floor((nzv.length - 1) * .985)] * (100 / (cfg.hmGain || 100)));
   const cv = HM.cv = HM.cv || document.createElement('canvas'); cv.width = cols; cv.height = rows;
   const g = cv.getContext('2d'), img = g.createImageData(cols, rows), d = img.data;
-  for (let c = 0; c < cols; c++) { if (!cov[c]) continue; for (let r = 0; r < rows; r++) {
-    const v = vals[c * rows + r], o = (r * cols + c) * 4;
-    if (!v) { d[o] = HM_BASE[0]; d[o+1] = HM_BASE[1]; d[o+2] = HM_BASE[2]; d[o+3] = 255; continue; }
-    const col = hmColor(Math.min(1, Math.pow(v / vmax, .6))); d[o] = col[0]; d[o+1] = col[1]; d[o+2] = col[2]; d[o+3] = 255;
-  } }
+  for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
+    const v = vals[c * rows + r]; if (!v) continue;
+    const col = hmColor(Math.min(1, Math.sqrt(v / vmax))), o = (r * cols + c) * 4; d[o] = col[0]; d[o+1] = col[1]; d[o+2] = col[2]; d[o+3] = col[3];
+  }
   g.putImageData(img, 0, 0);
-}
-function hmTrades() {   // trade bubbles need the live trade stream; it is opened only while the heatmap is on
-  const want = cfg.hm && cfg.hmBub !== false && PANE == null;
-  if (!want || HM.tsym !== cfg.symbol) {
-    if (HM.tws) { HM.tgen++; try { HM.tws.close(); } catch {} HM.tws = null; }
-    HM.tsym = null;
-  }
-  if (!want || HM.tws) return;
-  const g = ++HM.tgen, sym = HM.tsym = cfg.symbol;
-  const sock = HM.tws = new WebSocket(`${WS}${sym.toLowerCase()}@aggTrade`);
-  sock.onmessage = ev => {
-    if (g !== HM.tgen || HM.sym !== sym || !HM.step) return;
-    const m = JSON.parse(ev.data).data; if (!m || m.p == null) return;
-    const p = +m.p, q = +m.q, t = Math.floor(m.T / 1000) * 1000, k = Math.floor(p / HM.step + 1e-9), L = HM.trades;
-    let e = L.length ? L[L.length - 1] : null;                          // same second + same price row -> one bubble
-    if (!e || e.t !== t || e.k !== k) { e = null; for (let i = L.length - 1; i >= 0 && L[i].t === t; i--) if (L[i].k === k) { e = L[i]; break; } }
-    if (!e) { e = {t, k, p, b:0, s:0}; L.push(e); if (L.length > 20000) L.splice(0, 4000); }
-    if (m.m) e.s += q; else e.b += q;                                   // m = buyer was the maker -> a sell hit the bid
-    render();
-  };
-  sock.onclose = () => { if (g === HM.tgen) { HM.tws = null; } };      // hmTrades() runs every second and reconnects
-}
-function drawBubbles() {
-  const L = HM.trades; if (!L.length) return;
-  const x0 = I(0), x1 = right, t0 = i2t(x0), t1 = i2t(x1); let mx = 0; const vis = [];
-  for (let i = L.length - 1; i >= 0; i--) { const e = L[i]; if (e.t < t0 - 2000) break; if (e.t > t1) continue; const v = e.b + e.s; if (v > mx) mx = v; vis.push(e); }
-  if (!vis.length) return;
-  const rmax = Math.max(10, Math.min(30, PH() / 14)), floor = mx * .02;
-  vis.sort((a, b) => (a.b + a.s) - (b.b + b.s));                       // big ones on top
-  for (const e of vis) {
-    const v = e.b + e.s; if (v < floor) continue;
-    const x = X(t2i(e.t + 500)), y = Y((e.k + .5) * HM.step); if (x < -30 || x > PW() + 30 || y < -30 || y > PH() + 30) continue;
-    const r = 2.5 + (rmax - 2.5) * Math.sqrt(v / mx), share = e.b / v;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = '#d6453a'; ctx.fill();                 // sell share = red
-    if (share > 0) { ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + share * 2 * Math.PI); ctx.closePath(); ctx.fillStyle = '#35b36a'; ctx.fill(); }   // buy share = green
-    const gr = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .1, x, y, r);                  // sphere shading
-    gr.addColorStop(0, 'rgba(255,255,255,.55)'); gr.addColorStop(.45, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(0,0,0,.38)');
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = gr; ctx.fill();
-  }
 }
 function drawHM() {
   if (HM.sym !== cfg.symbol || !HM.snaps.length) return;
-  const cw = 2, rh = 2, cols = Math.ceil(PW() / cw), rows = Math.ceil(PH() / rh);
+  const cw = 3, rh = 4, cols = Math.ceil(PW() / cw), rows = Math.ceil(PH() / rh);
   const key = [yMin, yMax, barW, right, PW(), PH(), HM.snaps.length, cfg.hmGain, cfg.log, view.length].join('|');
   if (HM.key !== key) { HM.key = key; hmBuild(cols, rows, cw, rh); }
   if (HM.cv) { ctx.imageSmoothingEnabled = false; ctx.drawImage(HM.cv, 0, 0, cols * cw, rows * rh); ctx.imageSmoothingEnabled = true; }
-  if (cfg.hmLines !== false) {
-    const st = HM.step, list = []; let mxp = 0;
-    for (const tk of HM.tracks) {
-      if (tk.t1 - tk.t0 < 8000) continue;                                 // ignore flickers shorter than 8s
-      const x1 = X(t2i(tk.t0)), x2 = tk.on ? PW() : X(t2i(tk.t1)), y = Y((tk.idx + .5) * st);
-      if (x2 < 0 || x1 > PW() || y < 0 || y > PH()) continue;
-      list.push([tk, x1, x2, y]); mxp = Math.max(mxp, tk.peak);
-    }
-    ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'right';
-    for (const [tk, x1, x2, y] of list) {
-      const f = Math.min(1, tk.peak / mxp);
-      ctx.strokeStyle = `rgba(255,${tk.bid ? 214 : 170},${tk.bid ? 120 : 90},${.35 + .5 * f})`; ctx.lineWidth = 1; line(Math.max(0, x1), y, x2, y);   // thin bright core on top of the heat band
-      if (tk.on && f > .3) { ctx.fillStyle = '#e8f4ff'; ctx.fillText(fmtQ(tk.q), PW() - 4, y - 7); }
-    }
-    ctx.lineWidth = 1; ctx.font = '12px -apple-system,sans-serif'; ctx.textAlign = 'left';
+  if (cfg.hmLines === false) return;
+  const st = HM.step, list = []; let mxp = 0;
+  for (const tk of HM.tracks) {
+    if (tk.t1 - tk.t0 < 8000) continue;                                   // ignore flickers shorter than 8s
+    const x1 = X(t2i(tk.t0)), x2 = tk.on ? PW() : X(t2i(tk.t1)), y = Y((tk.idx + .5) * st);
+    if (x2 < 0 || x1 > PW() || y < 0 || y > PH()) continue;
+    list.push([tk, x1, x2, y]); mxp = Math.max(mxp, tk.peak);
   }
-  if (cfg.hmBub !== false) drawBubbles();
-  // colour bar, like Bookmap's toolbar
-  const lx = PW() - 150, ly = 8, lw = 130, lh = 9, gr = ctx.createLinearGradient(lx, 0, lx + lw, 0);
-  gr.addColorStop(0, 'rgb(' + HM_BASE + ')'); HM_STOPS.forEach(a => gr.addColorStop(a[0], `rgb(${a[1]},${a[2]},${a[3]})`));
-  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(lx - 3, ly - 3, lw + 6, lh + 6); ctx.fillStyle = gr; ctx.fillRect(lx, ly, lw, lh);
+  ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'right';
+  for (const [tk, x1, x2, y] of list) {
+    const f = Math.min(1, tk.peak / mxp), col = tk.bid ? '53,98,246' : '224,72,77';
+    ctx.strokeStyle = `rgba(${col},${.4 + .55 * f})`; ctx.lineWidth = 1 + 2.5 * f; line(Math.max(0, x1), y, x2, y);
+    if (tk.on && f > .3) { ctx.fillStyle = `rgb(${col})`; ctx.fillText(fmtQ(tk.q), PW() - 4, y - 7); }
+  }
+  ctx.lineWidth = 1; ctx.font = '12px -apple-system,sans-serif'; ctx.textAlign = 'left';
 }
 function hmLegend() { return cfg.hm && PANE == null && HM.snaps.length < 3 ? '  · heatmap: collecting order book…' : ''; }
 $('hmBtn').onclick = () => { cfg.hm = !cfg.hm; saveCfg(); };
