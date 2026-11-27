@@ -170,6 +170,15 @@ body.pane #paper,body.pane #bottom,body.pane #quote{display:none}
 body.pane #legend{top:8px}
 body.pane.tight #side{display:none}
 body.pane #symbol{width:100px}
+/* footprint DOM panel */
+#dom{display:none;flex:none;width:236px;margin-left:3px;flex-direction:column;min-height:0;background:#fff}
+body.domOn #dom{display:flex}
+#domHead{display:flex;align-items:center;gap:2px;padding:4px 6px;font-size:12px;border-bottom:1px solid rgba(128,128,128,.25);flex:none}
+#domHead b{margin-right:4px}#domStep{margin-right:auto;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#domHead button{padding:2px 8px}
+#domBody{flex:1;position:relative;min-height:0}
+#domCv{position:absolute;left:0;top:0;width:100%;height:100%;touch-action:none}
+@media (max-width:640px){body.domOn #dom{width:170px}}
 </style>
 </head>
 <body>
@@ -180,12 +189,13 @@ body.pane #symbol{width:100px}
   <input id="symbol" list="symbols" value="BTCUSDT" aria-label="Symbol">
   <datalist id="symbols"><option>BTCUSDT<option>ETHUSDT<option>SOLUSDT<option>BNBUSDT<option>XRPUSDT<option>ADAUSDT<option>DOGEUSDT<option>LINKUSDT<option>AVAXUSDT<option>LTCUSDT</datalist>
   <select id="tf" aria-label="Timeframe"><option>1s<option>1m<option>3m<option>5m<option>15m<option>30m<option>1h<option>2h<option>4h<option value="1d" selected>D<option value="1w">W<option value="1M">M<option value="__c">+ Custom…</select>
-  <select id="ctype" aria-label="Chart type"><option value="candle">Candles<option value="hollow">Hollow<option value="bars">Bars<option value="line">Line<option value="heikin">Heikin Ashi</select>
+  <select id="ctype" aria-label="Chart type"><option value="candle">Candles<option value="hollow">Hollow<option value="bars">Bars<option value="line">Line<option value="heikin">Heikin Ashi<option value="footprint">Footprint</select>
   <span class="sep"></span>
   <button id="indBtn">ƒx Indicators</button>
   <button id="alertBtn">⏰ Alert</button>
   <button id="replayBtn">⏪ Replay</button>
   <span id="replayCtl" hidden><button id="rPlay">▶ Play</button><button id="rStep">Step ›</button><button id="rExit">Exit</button></span>
+  <button id="domBtn" title="Depth of market ladder">☰ DOM</button>
   <span class="sep"></span>
   <button id="undo" title="Undo">↶</button><button id="redo" title="Redo">↷</button>
   <span class="grow keep"></span>
@@ -230,6 +240,7 @@ body.pane #symbol{width:100px}
       <button id="dbDel" title="Delete">&#128465;</button>
     </div>
   </div>
+  <div id="dom"><div id="domHead"><b>DOM</b><span id="domStep"></span><button id="domMinus" title="Finer price grouping">−</button><button id="domPlus" title="Coarser price grouping">+</button><button id="domCtr" title="Re-center">◎</button><button id="domX" title="Close">✕</button></div><div id="domBody"><canvas id="domCv"></canvas></div></div>
 </div>
 
 <div id="panes"></div>
@@ -307,6 +318,8 @@ body.pane #symbol{width:100px}
   <label>Grid lines <input type="checkbox" id="grid"></label>
   <label>Log price scale <input type="checkbox" id="logS"></label>
   <label>Dark mode <input type="checkbox" id="dark"></label>
+  <label>Footprint imbalance (×) <input type="number" id="fpImb" value="3" min="2"></label>
+  <label>Footprint Δ / volume labels <input type="checkbox" id="fpStat"></label>
   <div class="row"><button class="pri">Done</button></div></form></dialog>
 
 <script>
@@ -319,7 +332,7 @@ const PANE = (() => { const v = new URLSearchParams(location.search).get('pane')
 const CFGKEY = PANE ? 'cfg_p' + PANE : 'cfg';
 if (PANE != null) { document.body.classList.add('pane'); if (new URLSearchParams(location.search).get('tight')) document.body.classList.add('tight'); }
 const cfg = Object.assign({symbol:'BTCUSDT', tf:'1d', ctype:'candle', up:'#d6d6d6', dn:'#f29d38', grid:false, log:false, dark:false,
-  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
+  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
 /* timeframes: Binance-native intervals are fetched directly; any custom one (7s, 7m, 90m, 5h, 3d, 2w …) is built by aggregating a smaller native interval */
 const NATIVE = {'1s':1e3,'1m':6e4,'3m':18e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,'12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
 const UNIT = {s:1e3, m:6e4, h:36e5, d:864e5, w:6048e5};
@@ -347,6 +360,7 @@ let replay = null, playTimer = null, loadingOld = false, noMore = false;
 const cv = $('cv'), ctx = cv.getContext('2d');
 let W = 0, H = 0;
 const AXW = 78, AXH = 28;
+const defW = () => cfg.ctype === 'footprint' ? 90 : Math.max(6, Math.min(24, PW() / 70));
 const PW = () => W - AXW, PH = () => H - AXH;
 
 /* ---------- data ---------- */
@@ -402,7 +416,7 @@ async function loadChart() {
     if (g !== gen) return;
     if (!d.length) throw new Error('No data');
     data = d; view = data; message('');
-    barW = Math.max(6, Math.min(24, PW() / 70)); goLatest();
+    barW = defW(); goLatest();
     connect(g);
   } catch (e) {
     if (g !== gen) return;
@@ -524,6 +538,7 @@ function countdown() {
 }
 function paint() {
   queued = false;
+  fpSync(); domSync(); domPaint();
   if (W < AXW + 20 || H < AXH + 20) { DB.hidden = true; return; }
   const fg = cfg.dark ? '#d1d4dc' : '#131722', bg = cfg.dark ? '#131722' : '#fff', edge = cfg.dark ? '#d1d4dc' : '#000';
   ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
@@ -537,6 +552,7 @@ function paint() {
     const a = tr(lo), b = tr(hi), m = (b - a || a*.01) * .1;
     yMin = itr(a - m); yMax = itr(b + m);
   }
+  if (cfg.ctype === 'footprint') { fpK = FP.tick ? fpStepK() : 1; fpNeed(first); }
   // price axis
   const step = niceStep((yMax - yMin) / Math.max(2, PH()/60));
   for (let p = Math.ceil(yMin/step)*step; p <= yMax; p += step) {
@@ -571,6 +587,7 @@ function paint() {
     ctx.stroke(); ctx.lineWidth = 1;
   } else for (let i = first; i <= last; i++) {
     const c = shown[i], x = Math.round(X(i))+.5, up = c.c >= c.o, col = up ? cfg.up : cfg.dn;
+    if (cfg.ctype === 'footprint' && drawFP(i, c)) continue;
     if (cfg.ctype === 'bars') { ctx.strokeStyle = up ? '#8a8f99' : cfg.dn; ctx.lineWidth = 1.5; line(x,Y(c.h),x,Y(c.l)); line(x-bw/2,Y(c.o),x,Y(c.o)); line(x,Y(c.c),x+bw/2,Y(c.c)); ctx.lineWidth = 1; continue; }
     ctx.strokeStyle = edge; line(x,Y(c.h),x,Y(c.l));
     const top = Y(Math.max(c.o,c.c)), h = Math.max(1, Y(Math.min(c.o,c.c)) - top);
@@ -605,7 +622,7 @@ function paint() {
   // legend
   const hi = hover ? Math.round(I(hover.x)) : view.length-1, c = view[hi] || lc, ch = (c.c-c.o)/c.o*100;
   $('legend').textContent = `${cfg.symbol} · ${$('tf').selectedOptions[0].text}  O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}  (${ch>=0?'+':''}${ch.toFixed(2)}%)`
-    + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '');
+    + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '') + fpLegend(hi);
   updateDrawBar();
 }
 
@@ -854,7 +871,7 @@ cv.addEventListener('pointerup', endPointer);
 cv.addEventListener('pointercancel', endPointer);
 cv.addEventListener('pointerleave', () => { if (!drag) { hover = null; render(); } });
 cv.addEventListener('dblclick', e => { const m = pos(e); if (draft && draft.type === 'path') finishPath(); else if (m.x < PW() && m.y < PH() && !hidden && tool === 'cursor' && (() => { const d = [...drawings].reverse().find(d => vis(d) && hit(d,m.x,m.y)); if (d) { selected = d; render(); openDrawDlg(d); } return d; })()) return; else if (m.x > PW()) { yAuto = true; render(); } else if (m.y > PH()) goLatest(); });
-const clampW = w => Math.max(1.2, Math.min(80, w));
+const clampW = w => Math.max(1.2, Math.min(cfg.ctype === 'footprint' ? 320 : 80, w));
 const clampRight = r => Math.max(5, Math.min(view.length - 1 + PW()/barW - 5, r));
 cv.addEventListener('wheel', e => {
   e.preventDefault(); if (!view.length) return;
@@ -975,7 +992,7 @@ function bind(id, key) {
   el[isC ? 'checked' : 'value'] = cfg[key];
   el.oninput = () => { cfg[key] = isC ? el.checked : el.type === 'number' ? Math.max(2, Math.round(+el.value) || 2) : el.value; if (key === 'log') yAuto = true; theme(); saveCfg(); };
 }
-[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark']].forEach(a => bind(...a));
+[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['fpStat','fpStat']].forEach(a => bind(...a));
 function theme() {
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
   s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}#tplMenu{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#tplMenu hr{border-color:#2a2e39}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#symChips button{background:#2a2e39;color:#d1d4dc}#symChips button.on{background:#d1d4dc;color:#131722}.symRow.act{background:#2a2e39}.symTag{background:#2a2e39;color:#d1d4dc}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
@@ -1268,7 +1285,7 @@ if (load('sideHidden', false)) document.body.classList.add('sideHidden');
 paintSideTog();
 
 /* ---------- chart navigation buttons ---------- */
-function resetView() { barW = Math.max(6, Math.min(24, PW() / 70)); goLatest(); }
+function resetView() { barW = defW(); goLatest(); }
 const NAVTIP = {out:'Zoom out', in:'Zoom in', left:'Scroll to the left', right:'Scroll to the right', reset:'Reset chart view'};
 const MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 $('nav').addEventListener('click', e => {
@@ -1606,6 +1623,257 @@ if (PANE == null) {
 } else {
   $('layBtn').style.display = 'none';
 }
+
+/* ---------- footprint candles + DOM ladder (Binance aggTrades / depth) ---------- */
+const FP = {on:false, sym:null, tf:null, d0:null, tick:0, pages:[], live:null, bars:new Map(), coverFrom:Infinity, firstId:0, lastId:0,
+  busy:false, done:false, gen:0, ws:null, ready:false, buf:[], total:0, backoff:0};
+let fpK = 1;
+const TICKS = {};
+async function rj(path) {
+  let err;
+  for (const b of REST) {
+    try { const r = await fetch(b + path); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
+    catch (e) { err = e; if (/HTTP (418|429)/.test(e.message)) break; }
+  }
+  throw err;
+}
+async function tickOf(sym) {
+  if (TICKS[sym]) return TICKS[sym];
+  try {
+    const r = await rj('/api/v3/exchangeInfo?symbol=' + sym), f = r.symbols[0].filters.find(x => x.filterType === 'PRICE_FILTER');
+    TICKS[sym] = +f.tickSize || 0.01;
+  } catch { const p = lastPrice[sym] || (data.length ? data[data.length-1].c : 1); TICKS[sym] = 10 ** -dec(p); }
+  return TICKS[sym];
+}
+const fmtQ = v => v >= 1e6 ? (v/1e6).toFixed(2) + 'M' : v >= 1e3 ? (v/1e3).toFixed(v >= 1e4 ? 1 : 2) + 'K' : v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v >= 1 ? v.toFixed(2) : v >= .001 ? v.toFixed(3) : v > 0 ? v.toPrecision(2) : '0';
+const fmtD = d => (d >= 0 ? '+' : '−') + fmtQ(Math.abs(d));
+
+/* trades are kept raw (per page) and binned per candle, so a timeframe change only needs a rebuild, not a refetch */
+const fpPageOf = arr => { const p = {t:[], k:[], q:[], s:[]}; arr.forEach(x => { p.t.push(x.T); p.k.push(Math.round(+x.p / FP.tick)); p.q.push(+x.q); p.s.push(x.m ? 1 : 0); }); return p; };
+function fpCT(t) {   // candle start time a trade belongs to
+  const n = data.length; if (!n) return null; const L = data[n-1];
+  if (t >= L.t) return (t < L.t + TFMS[cfg.tf] || cfg.tf === '1M') ? L.t : bucketOf(t, cfg.tf);
+  if (t < data[0].t) return null;
+  let a = 0, b = n - 1; while (b - a > 1) { const m = (a + b) >> 1; data[m].t <= t ? a = m : b = m; }
+  return data[a].t;
+}
+function fpAdd(ct, key, q, s) {   // cell = [sell volume (hit the bid), buy volume (lifted the ask)]
+  let b = FP.bars.get(ct); if (!b) FP.bars.set(ct, b = {c:new Map(), ver:0});
+  let cell = b.c.get(key); if (!cell) b.c.set(key, cell = [0, 0]);
+  cell[s ? 0 : 1] += q; b.ver++;
+}
+function fpAddPage(p) { for (let i = 0; i < p.t.length; i++) { const ct = fpCT(p.t[i]); if (ct != null) fpAdd(ct, p.k[i], p.q[i], p.s[i]); } }
+function fpRebuild() { FP.bars = new Map(); FP.tf = cfg.tf; FP.d0 = data.length ? data[0].t : null; FP.pages.forEach(fpAddPage); }
+function fpPush(x) {   // one live / catch-up trade
+  if (x.a <= FP.lastId) return; FP.lastId = x.a; FP.total++;
+  const k = Math.round(+x.p / FP.tick), q = +x.q, s = x.m ? 1 : 0, L = FP.live;
+  L.t.push(x.T); L.k.push(k); L.q.push(q); L.s.push(s);
+  const ct = fpCT(x.T); if (ct != null) fpAdd(ct, k, q, s);
+}
+function fpOpenWs(g) {
+  FP.ready = false; FP.buf = [];
+  const sock = FP.ws = new WebSocket(`${WS}${FP.sym.toLowerCase()}@aggTrade`);
+  sock.onmessage = ev => { if (g !== FP.gen) return; const m = JSON.parse(ev.data).data; if (!m || m.a == null) return; if (FP.ready) { fpPush(m); render(); } else FP.buf.push(m); };
+  sock.onopen = () => fpCatchUp(g);
+  sock.onclose = () => { if (g === FP.gen && FP.on) setTimeout(() => { if (g === FP.gen && FP.on) fpOpenWs(g); }, 2500); };
+}
+async function fpCatchUp(g) {   // after (re)connecting: fetch what we are missing, then go live
+  try {
+    if (!FP.tick) FP.tick = await tickOf(FP.sym);
+    if (g !== FP.gen) return;
+    if (!FP.pages.length) {
+      const arr = await rj(`/api/v3/aggTrades?symbol=${FP.sym}&limit=1000`); if (g !== FP.gen) return;
+      if (!arr.length) throw new Error('no trades');
+      const p = fpPageOf(arr); FP.live = {t:[], k:[], q:[], s:[]}; FP.pages = [p, FP.live];
+      FP.firstId = arr[0].a; FP.lastId = arr[arr.length-1].a; FP.total = arr.length; FP.coverFrom = p.t[0]; fpAddPage(p);
+    } else for (let n = 0; n < 20; n++) {
+      const arr = await rj(`/api/v3/aggTrades?symbol=${FP.sym}&fromId=${FP.lastId + 1}&limit=1000`); if (g !== FP.gen) return;
+      arr.forEach(fpPush); if (arr.length < 1000) break;
+    }
+    FP.buf.forEach(fpPush); FP.buf = []; FP.ready = true; render();
+  } catch (e) { if (g === FP.gen && FP.on) setTimeout(() => { if (g === FP.gen && FP.on) fpCatchUp(g); }, 4000); }
+}
+function fpNeed(first) {   // make sure the trades for the leftmost visible candle are loaded
+  if (!FP.on || !FP.ready || FP.busy || FP.done || Date.now() < FP.backoff || !view.length) return;
+  if (PW() / barW > 90) return;                                   // too zoomed out for a footprint anyway
+  const c = view[Math.min(view.length - 1, Math.max(0, first))];
+  if (c && c.t < FP.coverFrom) fpBack(c.t);
+}
+async function fpBack(target) {   // walk backwards through trade ids, 5 pages at a time
+  FP.busy = true; const g = FP.gen; render();
+  try {
+    for (let r = 0; r < 8 && g === FP.gen; r++) {
+      if (FP.coverFrom <= target) break;
+      if (FP.firstId <= 0 || FP.total > 600000) { FP.done = true; if (FP.total > 600000) toast('Footprint history limit reached.'); break; }
+      const froms = [...new Set([1,2,3,4,5].map(k => Math.max(0, FP.firstId - 1000 * k)))];
+      const parts = await Promise.all(froms.map(f => rj(`/api/v3/aggTrades?symbol=${FP.sym}&fromId=${f}&limit=1000`)));
+      if (g !== FP.gen) return;
+      const seen = new Map(); parts.flat().forEach(x => { if (x.a < FP.firstId) seen.set(x.a, x); });
+      const arr = [...seen.values()].sort((a, b) => a.a - b.a);
+      if (!arr.length) { FP.done = true; break; }
+      const p = fpPageOf(arr); FP.pages.unshift(p); FP.firstId = arr[0].a; FP.total += arr.length; FP.coverFrom = p.t[0]; fpAddPage(p); render();
+    }
+  } catch (e) { FP.backoff = Date.now() + 30000; toast('Footprint history: ' + e.message + ' – will retry shortly.'); }
+  if (g === FP.gen) FP.busy = false;
+}
+function fpStop() {
+  FP.gen++; if (FP.ws) { FP.ws.onclose = null; FP.ws.close(); }
+  Object.assign(FP, {on:false, sym:null, tf:null, d0:null, tick:0, pages:[], live:null, bars:new Map(), coverFrom:Infinity, firstId:0, lastId:0,
+    busy:false, done:false, ws:null, ready:false, buf:[], total:0, backoff:0});
+}
+function fpSync() {   // called from paint(): follows cfg.ctype / symbol / timeframe
+  if (cfg.ctype === 'footprint') {
+    if (!FP.on || FP.sym !== cfg.symbol) {
+      const first = !FP.on; fpStop(); FP.on = true; FP.sym = cfg.symbol; fpOpenWs(FP.gen);
+      if (first && view.length && barW < 70) resetView();
+      if (first && TFMS[cfg.tf] > 144e5) toast('Footprint works best on intraday timeframes (1m – 1h).');
+    }
+    if (data.length && (FP.tf !== cfg.tf || FP.d0 !== data[0].t)) fpRebuild();
+  } else if (FP.on) { fpStop(); if (barW > 40) resetView(); }
+}
+function fpStepK() {   // price rows are grouped so one row is ~13px tall
+  const ref = view.length ? view[view.length-1].c : 1, px = Math.abs(Y(ref + FP.tick) - Y(ref)) || 1e-6;
+  const k0 = Math.max(1, Math.ceil(13 / px)), m = 10 ** Math.floor(Math.log10(k0));
+  return [1, 2, 5, 10].map(x => x * m).find(x => x >= k0);
+}
+function fpRows(bar, k) {   // cached per candle + grouping
+  if (bar._k === k && bar._v === bar.ver) return bar._r;
+  const m = new Map(); let S = 0, B = 0;
+  for (const [key, c] of bar.c) { const j = Math.floor(key / k); let r = m.get(j); if (!r) m.set(j, r = {j, s:0, b:0}); r.s += c[0]; r.b += c[1]; S += c[0]; B += c[1]; }
+  const rows = [...m.values()].sort((a, b) => a.j - b.j); let mx = 0, poc = null;
+  rows.forEach(r => { mx = Math.max(mx, r.s, r.b); if (!poc || r.s + r.b > poc.s + poc.b) poc = r; });
+  Object.assign(rows, {S, B, max:mx, poc, by:new Map(rows.map(r => [r.j, r]))});
+  bar._k = k; bar._v = bar.ver; bar._r = rows; return rows;
+}
+function drawFP(i, c) {   // returns false when there is no trade data for this candle (caller draws a normal candle)
+  if (!FP.tick || barW < 18) return false;
+  const bar = FP.bars.get(c.t); if (!bar || c.t < FP.coverFrom) return false;
+  const rows = fpRows(bar, fpK); if (!rows.length) return false;
+  const cx = X(i), w = Math.max(12, barW * .88), xs = cx - w / 2, x0 = xs + 6, cw = w - 6, half = cw / 2, mid = x0 + half, tick = FP.tick;
+  const rowY = j => [Y((j + 1) * fpK * tick - tick / 2), Y(j * fpK * tick - tick / 2)];
+  const fg = cfg.dark ? '#d1d4dc' : '#131722', ratio = cfg.fpImb || 3, mx = rows.max || 1, txt = barW >= 56;
+  ctx.textBaseline = 'middle';
+  for (const r of rows) {
+    const [y1, y2] = rowY(r.j), h = y2 - y1; if (y2 < 0 || y1 > PH()) continue;
+    const lo = rows.by.get(r.j - 1), up = rows.by.get(r.j + 1);
+    const bImb = !!lo && r.b > mx * .05 && r.b >= ratio * lo.s, sImb = !!up && r.s > mx * .05 && r.s >= ratio * up.b;   // diagonal imbalances
+    const aS = sImb ? .85 : .1 + .5 * Math.min(1, r.s / mx), aB = bImb ? .85 : .1 + .5 * Math.min(1, r.b / mx), hh = Math.max(1, h - 1);
+    ctx.fillStyle = `rgba(224,72,77,${aS})`; ctx.fillRect(x0, y1 + .5, half - .5, hh);
+    ctx.fillStyle = `rgba(53,98,246,${aB})`; ctx.fillRect(mid + .5, y1 + .5, half - .5, hh);
+    if (txt && h >= 9 && half >= 24) {
+      const ty = (y1 + y2) / 2 + .5;
+      if (r.s) { ctx.font = (sImb ? 'bold ' : '') + '11px -apple-system,sans-serif'; ctx.textAlign = 'right'; ctx.fillStyle = aS > .5 ? '#fff' : fg; ctx.fillText(fmtQ(r.s), mid - 3, ty); }
+      if (r.b) { ctx.font = (bImb ? 'bold ' : '') + '11px -apple-system,sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = aB > .5 ? '#fff' : fg; ctx.fillText(fmtQ(r.b), mid + 3, ty); }
+    }
+  }
+  if (rows.poc) { const [y1, y2] = rowY(rows.poc.j); ctx.strokeStyle = '#f2b705'; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + .5, y1 + .5, cw - 1, Math.max(1, y2 - y1 - 1)); ctx.lineWidth = 1; }
+  // the candle itself, as a thin strip on the left
+  const up = c.c >= c.o, top = Y(Math.max(c.o, c.c)), bh = Math.max(1, Y(Math.min(c.o, c.c)) - top);
+  ctx.strokeStyle = cfg.dark ? '#d1d4dc' : '#000'; line(xs + 2.5, Y(c.h), xs + 2.5, Y(c.l));
+  ctx.fillStyle = up ? cfg.up : cfg.dn; ctx.fillRect(xs, top, 5, bh); ctx.strokeRect(xs + .5, top, 4, bh);
+  if (cfg.fpStat !== false && barW >= 70) {   // delta + total volume under the candle
+    const yb = Math.max(Y(c.l), rowY(rows[0].j)[1]) + 12;
+    if (yb + 14 < PH() && yb > 0) {
+      const d = rows.B - rows.S; ctx.textAlign = 'center';
+      ctx.font = 'bold 11px -apple-system,sans-serif'; ctx.fillStyle = d >= 0 ? '#089981' : '#e0484d'; ctx.fillText('Δ ' + fmtD(d), cx, yb);
+      ctx.font = '11px -apple-system,sans-serif'; ctx.fillStyle = fg; ctx.fillText(fmtQ(rows.S + rows.B), cx, yb + 13);
+    }
+  }
+  ctx.font = '12px -apple-system,sans-serif'; ctx.textAlign = 'left';
+  return true;
+}
+function fpLegend(hi) {
+  if (cfg.ctype !== 'footprint') return '';
+  const c = view[hi], b = c && FP.bars.get(c.t); let s = '';
+  if (b && c.t >= FP.coverFrom && FP.tick) { const r = fpRows(b, fpK); s = `  · Δ ${fmtD(r.B - r.S)}  Vol ${fmtQ(r.B + r.S)}  (sell ${fmtQ(r.S)} / buy ${fmtQ(r.B)})`; }
+  else if (FP.ready && !FP.busy) s = '  · no trade data for this candle';
+  return s + (FP.busy || !FP.ready ? '  · loading trades…' : '');
+}
+
+/* ---------- DOM ladder ---------- */
+const DOMS = {on:false, sym:null, gen:0, ws:null, ready:false, buf:[], last:0, bids:new Map(), asks:new Map(), tick:0, off:0, acc:0, k:0, kEff:1};
+let dctx = null, DW = 0, DH = 0;
+const KSTEPS = []; for (let e = 0; e < 9; e++) [1, 2, 5].forEach(m => KSTEPS.push(m * 10 ** e));
+function domStop() {
+  DOMS.gen++; if (DOMS.ws) { DOMS.ws.onclose = null; DOMS.ws.close(); }
+  Object.assign(DOMS, {on:false, sym:null, ws:null, ready:false, buf:[], last:0, bids:new Map(), asks:new Map(), tick:0});
+}
+function domRestart() { DOMS.sym = null; render(); }   // domSync() (from paint) starts it again
+async function domStart() {
+  domStop(); DOMS.on = true; const sym = DOMS.sym = cfg.symbol, g = DOMS.gen;
+  DOMS.off = 0; DOMS.k = load('domK_' + sym, 0);
+  const tick = await tickOf(sym); if (g !== DOMS.gen) return; DOMS.tick = tick;
+  const sock = DOMS.ws = new WebSocket(`${WS}${sym.toLowerCase()}@depth@100ms`);
+  sock.onmessage = ev => { if (g !== DOMS.gen) return; const m = JSON.parse(ev.data).data; if (!m || !m.b) return; DOMS.ready ? domApply(m, g) : DOMS.buf.push(m); };
+  sock.onclose = () => { if (g === DOMS.gen && DOMS.on) setTimeout(() => { if (g === DOMS.gen && DOMS.on) domRestart(); }, 2000); };
+  sock.onopen = async () => {
+    try {
+      const s = await rj(`/api/v3/depth?symbol=${sym}&limit=1000`); if (g !== DOMS.gen) return;
+      DOMS.bids = new Map(s.bids.map(([p, q]) => [+p, +q])); DOMS.asks = new Map(s.asks.map(([p, q]) => [+p, +q])); DOMS.last = s.lastUpdateId;
+      const buf = DOMS.buf; DOMS.buf = []; DOMS.ready = true; buf.forEach(m => domApply(m, g)); render();
+    } catch { if (g === DOMS.gen) setTimeout(() => { if (g === DOMS.gen && DOMS.on) domRestart(); }, 3000); }
+  };
+}
+function domApply(m, g) {   // Binance rule: drop old events, resync on a gap
+  if (g !== DOMS.gen || m.u <= DOMS.last) return;
+  if (m.U > DOMS.last + 1) { domRestart(); return; }
+  for (const [p, q] of m.b) +q ? DOMS.bids.set(+p, +q) : DOMS.bids.delete(+p);
+  for (const [p, q] of m.a) +q ? DOMS.asks.set(+p, +q) : DOMS.asks.delete(+p);
+  DOMS.last = m.u; render();
+}
+function domSync() {
+  const want = !!cfg.dom && PANE == null;
+  document.body.classList.toggle('domOn', want); $('domBtn').classList.toggle('on', want);
+  if (want) { if (!DOMS.on || DOMS.sym !== cfg.symbol) domStart(); } else if (DOMS.on) domStop();
+}
+function domGroup(dir) {
+  let i = KSTEPS.findIndex(x => x >= (DOMS.kEff || 1)); if (i < 0) i = KSTEPS.length - 1;
+  DOMS.k = KSTEPS[Math.max(0, Math.min(KSTEPS.length - 1, i + dir))]; save('domK_' + DOMS.sym, DOMS.k); render();
+}
+function domPaint() {
+  if (!document.body.classList.contains('domOn') || !dctx || DW < 60) return;
+  const dark = cfg.dark, fg = dark ? '#d1d4dc' : '#131722', bg = dark ? '#131722' : '#fff', c = dctx;
+  $('dom').style.background = bg; $('dom').style.color = fg;
+  c.fillStyle = bg; c.fillRect(0, 0, DW, DH); c.font = '11px -apple-system,sans-serif'; c.textBaseline = 'middle';
+  const msg = t => { c.fillStyle = fg; c.textAlign = 'center'; c.fillText(t, DW / 2, 30); };
+  if (!DOMS.ready || !DOMS.tick) return msg('Loading order book…');
+  let bb = 0, ba = Infinity;
+  for (const p of DOMS.bids.keys()) if (p > bb) bb = p;
+  for (const p of DOMS.asks.keys()) if (p < ba) ba = p;
+  if (!bb || ba === Infinity) return msg('No order book data');
+  const tick = DOMS.tick, mid = (bb + ba) / 2, RH = 18, n = Math.max(3, Math.floor(DH / RH));
+  let k = DOMS.k; if (!k) { const want = mid * .0015 / n / tick; k = KSTEPS.find(x => x >= want) || KSTEPS[KSTEPS.length - 1]; }
+  DOMS.kEff = k;
+  const step = k * tick, dp = Math.max(0, Math.round(-Math.log10(tick))), center = Math.round(mid / step) + DOMS.off, top = center + Math.floor(n / 2), lo = top - n;
+  $('domStep').textContent = 'group ' + fmt(step, dp);
+  const bidG = new Map(), askG = new Map(), volG = new Map();
+  for (const [p, q] of DOMS.bids) { const j = Math.floor(p / step + 1e-9); if (j <= top && j > lo) bidG.set(j, (bidG.get(j) || 0) + q); }
+  for (const [p, q] of DOMS.asks) { const j = Math.ceil(p / step - 1e-9); if (j <= top && j > lo) askG.set(j, (askG.get(j) || 0) + q); }
+  const vb = FP.on && FP.tick === tick && data.length ? FP.bars.get(data[data.length - 1].t) : null;   // traded volume of the live candle (footprint mode)
+  if (vb) for (const [key, cell] of vb.c) { const j = Math.floor(key * tick / step + 1e-9); if (j <= top && j > lo) { const v = volG.get(j) || [0, 0]; v[0] += cell[0]; v[1] += cell[1]; volG.set(j, v); } }
+  const vw = vb ? 44 : 0, rest = DW - vw, bw = Math.floor(rest * .34), pw = Math.floor(rest * .32), aw = rest - bw - pw;
+  const mx = Math.max(1e-12, ...bidG.values(), ...askG.values());
+  const lp = lastPrice[cfg.symbol], lastIdx = lp ? Math.round(lp / step) : null, bj = Math.floor(bb / step + 1e-9), aj = Math.ceil(ba / step - 1e-9);
+  for (let r = 0; r < n; r++) {
+    const idx = top - r, y = r * RH, ty = y + RH / 2 + .5, b = bidG.get(idx), a = askG.get(idx), v = volG.get(idx);
+    if (idx === lastIdx) { c.fillStyle = 'rgba(128,128,128,.25)'; c.fillRect(0, y, DW, RH); }
+    if (b) { const l = Math.max(1, b / mx * bw); c.fillStyle = 'rgba(53,98,246,.45)'; c.fillRect(bw - l, y + 1, l, RH - 2); c.fillStyle = fg; c.textAlign = 'right'; c.fillText(fmtQ(b), bw - 4, ty); }
+    if (a) { const l = Math.max(1, a / mx * aw); c.fillStyle = 'rgba(224,72,77,.45)'; c.fillRect(bw + pw, y + 1, l, RH - 2); c.fillStyle = fg; c.textAlign = 'left'; c.fillText(fmtQ(a), bw + pw + 4, ty); }
+    c.font = (idx === bj || idx === aj ? 'bold ' : '') + '11px -apple-system,sans-serif'; c.fillStyle = fg; c.textAlign = 'center'; c.fillText(fmt(idx * step, dp), bw + pw / 2, ty); c.font = '11px -apple-system,sans-serif';
+    if (v) { const d = v[1] - v[0]; c.fillStyle = d >= 0 ? '#089981' : '#e0484d'; c.textAlign = 'right'; c.fillText(fmtQ(v[0] + v[1]), DW - 3, ty); }
+  }
+  const yb = (top - bj) * RH + RH;   // line under the best bid group
+  c.strokeStyle = 'rgba(128,128,128,.6)'; c.beginPath(); c.moveTo(0, yb + .5); c.lineTo(DW, yb + .5); c.stroke();
+}
+$('domBtn').onclick = () => { cfg.dom = !cfg.dom; saveCfg(); };
+$('domX').onclick = () => { cfg.dom = false; saveCfg(); };
+$('domMinus').onclick = () => domGroup(-1);
+$('domPlus').onclick = () => domGroup(1);
+$('domCtr').onclick = () => { DOMS.off = 0; render(); };
+$('domCv').addEventListener('wheel', e => { e.preventDefault(); DOMS.acc += e.deltaY; const s = Math.trunc(DOMS.acc / 18); if (s) { DOMS.off -= s; DOMS.acc -= s * 18; render(); } }, {passive:false});
+$('domCv').addEventListener('dblclick', () => { DOMS.off = 0; render(); });
+dctx = $('domCv').getContext('2d');
+new ResizeObserver(() => { const r = $('domBody').getBoundingClientRect(), k = devicePixelRatio || 1; DW = r.width; DH = r.height; const cv2 = $('domCv'); cv2.width = Math.max(1, DW * k); cv2.height = Math.max(1, DH * k); dctx.setTransform(k, 0, 0, k, 0, 0); render(); }).observe($('domBody'));
 
 /* ---------- start ---------- */
 new ResizeObserver(() => {
