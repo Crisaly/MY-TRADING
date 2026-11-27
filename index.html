@@ -411,7 +411,9 @@ function toast(text) { const t = $('toast'); t.textContent = text; t.style.displ
 
 async function loadChart() {
   const g = ++gen;
-  stopReplay(); clearTimeout(retry);
+  const keep = replay && !replay.picking && replay.sym === cfg.symbol ? {T:replay.T, playing:!!playTimer} : null;   // changing timeframe keeps the replay point
+  if (keep) { pause(); replay = null; } else stopReplay();
+  clearTimeout(retry);
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
   data = []; view = []; bid = ask = null; noMore = false; loadingOld = false; draft = selected = null;
   drawings = load('draw_' + cfg.symbol, []); undoS = []; redoS = [];
@@ -421,7 +423,8 @@ async function loadChart() {
     if (g !== gen) return;
     if (!d.length) throw new Error('No data');
     data = d; view = data; message('');
-    barW = defW(); goLatest();
+    barW = defW();
+    if (keep) { view = []; message('Restoring replay…'); await replayResume(keep, g); if (g !== gen) return; message(''); } else goLatest();
     connect(g);
   } catch (e) {
     if (g !== gen) return;
@@ -1039,12 +1042,41 @@ function beep() { try { const a = new AudioContext(), o = a.createOscillator(); 
 $('replayBtn').onclick = () => { if (replay || !data.length) return; replay = {picking:true}; setTool('cursor'); toast('Tap a candle to start the replay from there'); };
 function startReplayAt(i) {
   i = Math.max(1, Math.min(data.length-2, i));
-  replay = {all:data.slice(), n:i+1}; view = replay.all.slice(0, replay.n); $('replayCtl').hidden = false; right = i + PW()/barW*.3; yAuto = true; render();
+  replay = {all:data.slice(), n:i+1, T:data[i].t + TFMS[cfg.tf], sym:cfg.symbol, part:false}; view = replay.all.slice(0, replay.n); $('replayCtl').hidden = false; right = i + PW()/barW*.3; yAuto = true; render();
 }
 function replayStep() {
   if (!replay || replay.picking) return;
+  const ms = TFMS[cfg.tf];
+  if (replay.part) { const c = replay.all[replay.n - 1]; view[view.length - 1] = c; replay.part = false; replay.T = c.t + ms; render(); return; }   // finish the candle that was only partly formed
   if (replay.n >= replay.all.length) return pause();
-  view.push(replay.all[replay.n++]); right++; render();
+  const c = replay.all[replay.n++]; view.push(c); replay.T = c.t + ms; right++; render();
+}
+/* keep the replay point when the timeframe changes: it is stored as a time, then rebuilt on the new timeframe */
+async function replayHistory(T, g) {      // make sure the new timeframe reaches back to the replay time
+  for (let n = 0; n < 40 && data.length && data[0].t > T - TFMS[cfg.tf] * 3 && !noMore; n++) {
+    const d = await klinesTf(cfg.symbol, cfg.tf, '&endTime=' + (data[0].t - 1)); if (g !== gen) return false;
+    if (!d.length) { noMore = true; break; } data = d.concat(data);
+  }
+  return g === gen;
+}
+async function partialBar(t0, T) {        // a candle that is only formed up to time T, rebuilt from finer candles
+  const ms = TFMS[cfg.tf], fine = ['1m', '5m', '15m', '1h'].find(f => ms / TFMS[f] <= 1000) || '1h';
+  const a = (await klines(cfg.symbol, fine, `&startTime=${t0}&endTime=${T - 1}`)).filter(x => x.t >= t0 && x.t < T);
+  return a.length ? {t:t0, o:a[0].o, h:Math.max(...a.map(x => x.h)), l:Math.min(...a.map(x => x.l)), c:a[a.length - 1].c, v:a.reduce((q, x) => q + x.v, 0)} : null;
+}
+async function replayResume(keep, g) {
+  const ms = TFMS[cfg.tf];
+  if (!(await replayHistory(keep.T, g))) return;
+  const all = data.slice(); let k = 0; while (k < all.length && all[k].t + ms <= keep.T) k++;
+  let v = all.slice(0, k), part = false, T = keep.T; const nxt = all[k];
+  if (nxt && nxt.t < keep.T) {             // the replay time is inside this candle: show it as formed so far
+    try { const p = await partialBar(nxt.t, keep.T); if (g !== gen) return; if (p) { v.push(p); part = true; k++; } } catch {}
+  }
+  if (g !== gen) return;
+  if (v.length < 2) { v = all.slice(0, Math.min(2, all.length)); k = v.length; T = v[v.length - 1].t + ms; toast('This timeframe has no history that far back – replay restarted from its earliest candle.'); }
+  replay = {all, n:k, T, sym:cfg.symbol, part}; view = v; $('replayCtl').hidden = false;
+  right = view.length - 1 + PW() / barW * .3; yAuto = true; message('');
+  if (keep.playing) $('rPlay').onclick();
 }
 function pause() { clearInterval(playTimer); playTimer = null; $('rPlay').textContent = '▶ Play'; }
 function stopReplay() { pause(); const was = replay; replay = null; $('replayCtl').hidden = true; view = data; if (was && data.length) goLatest(); }
