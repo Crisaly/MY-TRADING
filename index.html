@@ -305,6 +305,7 @@ body.domOn #dom{display:flex}
   <label>Exponential average (EMA) <input type="checkbox" id="emaOn"></label><label>EMA length <input type="number" id="emaN" value="20" min="2"></label>
   <label>Volume <input type="checkbox" id="volOn"></label>
   <label>Volume profile (POC / VAH / VAL) <input type="checkbox" id="vpOn"></label>
+  <label>Profile range <select id="vpMode"><option value="visible">Visible range<option value="session">Daily session (UTC)</select></label>
   <div class="row"><button class="pri">Done</button></div></form></dialog>
 
 <dialog id="alertDlg"><form method="dialog"><h3>Price alert</h3>
@@ -333,7 +334,7 @@ const PANE = (() => { const v = new URLSearchParams(location.search).get('pane')
 const CFGKEY = PANE ? 'cfg_p' + PANE : 'cfg';
 if (PANE != null) { document.body.classList.add('pane'); if (new URLSearchParams(location.search).get('tight')) document.body.classList.add('tight'); }
 const cfg = Object.assign({symbol:'BTCUSDT', tf:'1d', ctype:'candle', up:'#d6d6d6', dn:'#f29d38', grid:false, log:false, dark:false,
-  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false, vpOn:false}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
+  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false, vpOn:false, vpMode:'visible'}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
 /* timeframes: Binance-native intervals are fetched directly; any custom one (7s, 7m, 90m, 5h, 3d, 2w …) is built by aggregating a smaller native interval */
 const NATIVE = {'1s':1e3,'1m':6e4,'3m':18e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,'12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
 const UNIT = {s:1e3, m:6e4, h:36e5, d:864e5, w:6048e5};
@@ -994,7 +995,7 @@ function bind(id, key) {
   el[isC ? 'checked' : 'value'] = cfg[key];
   el.oninput = () => { cfg[key] = isC ? el.checked : el.type === 'number' ? Math.max(2, Math.round(+el.value) || 2) : el.value; if (key === 'log') yAuto = true; theme(); saveCfg(); };
 }
-[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['fpStat','fpStat']].forEach(a => bind(...a));
+[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['vpMode','vpMode'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['fpStat','fpStat']].forEach(a => bind(...a));
 function theme() {
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
   s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}#tplMenu{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#tplMenu hr{border-color:#2a2e39}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#symChips button{background:#2a2e39;color:#d1d4dc}#symChips button.on{background:#d1d4dc;color:#131722}.symRow.act{background:#2a2e39}.symTag{background:#2a2e39;color:#d1d4dc}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
@@ -1878,35 +1879,56 @@ dctx = $('domCv').getContext('2d');
 new ResizeObserver(() => { const r = $('domBody').getBoundingClientRect(), k = devicePixelRatio || 1; DW = r.width; DH = r.height; const cv2 = $('domCv'); cv2.width = Math.max(1, DW * k); cv2.height = Math.max(1, DH * k); dctx.setTransform(k, 0, 0, k, 0, 0); render(); }).observe($('domBody'));
 
 
-/* ---------- visible-range volume profile (POC / VAH / VAL) ---------- */
-function drawVP(first, last) {
-  const nR = Math.max(10, Math.floor(PH() / 5)), lo = yMin, rp = (yMax - yMin) / nR; if (!(rp > 0) || last < first) return;
-  const bins = new Float64Array(nR), at = p => Math.max(0, Math.min(nR - 1, Math.floor((p - lo) / rp)));
-  for (let i = first; i <= last; i++) {
+/* ---------- volume profile (POC / VAH / VAL): visible range or daily UTC sessions ---------- */
+function vpBuild(i0, i1, rp) {   // profile of candles i0..i1 on a fixed price grid of rp
+  let mn = Infinity, mx = -Infinity;
+  for (let i = i0; i <= i1; i++) { mn = Math.min(mn, view[i].l); mx = Math.max(mx, view[i].h); }
+  const g0 = Math.floor(mn / rp), nR = Math.floor(mx / rp) - g0 + 1; if (!(nR > 0) || nR > 6000) return null;
+  const bins = new Float64Array(nR), ix = p => Math.max(0, Math.min(nR - 1, Math.floor(p / rp) - g0));
+  for (let i = i0; i <= i1; i++) {
     const c = view[i], bar = FP.on && FP.tick && c.t >= FP.coverFrom ? FP.bars.get(c.t) : null;
-    if (bar) { for (const [key, cell] of bar.c) { const p = key * FP.tick; if (p >= lo && p <= yMax) bins[at(p)] += cell[0] + cell[1]; } }   // exact, from trades
-    else { const a = at(c.l), b = at(c.h), v = c.v / (b - a + 1); for (let k = a; k <= b; k++) bins[k] += v; }                                   // estimate: candle volume spread over its range
+    if (bar) { for (const [key, cell] of bar.c) bins[ix(key * FP.tick)] += cell[0] + cell[1]; }          // exact, from trades
+    else { const a = ix(c.l), b = ix(c.h), v = c.v / (b - a + 1); for (let k = a; k <= b; k++) bins[k] += v; }   // estimate: candle volume spread over its range
   }
   let tot = 0, poc = 0; for (let k = 0; k < nR; k++) { tot += bins[k]; if (bins[k] > bins[poc]) poc = k; }
-  if (!tot) return;
+  if (!tot) return null;
   let a = poc, b = poc, acc = bins[poc];                                  // value area = 70% of volume around the POC
   while (acc < tot * .7 && (a > 0 || b < nR - 1)) {
-    const dn = a > 0 ? bins[a - 1] + (a > 1 ? bins[a - 2] : 0) : -1, upv = b < nR - 1 ? bins[b + 1] + (b < nR - 2 ? bins[b + 2] : 0) : -1;
-    if (dn >= upv) { a--; acc += bins[a]; } else { b++; acc += bins[b]; }
+    const dn = a > 0 ? bins[a - 1] + (a > 1 ? bins[a - 2] : 0) : -1, up = b < nR - 1 ? bins[b + 1] + (b < nR - 2 ? bins[b + 2] : 0) : -1;
+    if (dn >= up) { a--; acc += bins[a]; } else { b++; acc += bins[b]; }
   }
-  const maxW = Math.min(PW() * .3, 240), mx = bins[poc], rowTop = k => Y(lo + (k + 1) * rp), rowH = Math.max(1, Y(lo) - Y(lo + rp) - .5);
-  for (let k = 0; k < nR; k++) {
-    if (!bins[k]) continue; const w = bins[k] / mx * maxW;
-    ctx.fillStyle = k === poc ? 'rgba(242,183,5,.6)' : k >= a && k <= b ? 'rgba(41,98,255,.30)' : 'rgba(120,125,140,.25)';
-    ctx.fillRect(PW() - w, rowTop(k), w, rowH);
+  return {bins, g0, nR, poc, a, b, rp, poc_p:(g0 + poc + .5) * rp, vah:(g0 + b + 1) * rp, val:(g0 + a) * rp};
+}
+function vpDraw(P, x0, dir, maxW, xl, xr, label, lx, lAlign) {
+  const mx = P.bins[P.poc];
+  for (let k = 0; k < P.nR; k++) {
+    if (!P.bins[k]) continue; const w = P.bins[k] / mx * maxW, yt = Y((P.g0 + k + 1) * P.rp), yb = Y((P.g0 + k) * P.rp);
+    ctx.fillStyle = k === P.poc ? 'rgba(242,183,5,.6)' : k >= P.a && k <= P.b ? 'rgba(41,98,255,.30)' : 'rgba(120,125,140,.25)';
+    ctx.fillRect(dir > 0 ? x0 : x0 - w, yt, w, Math.max(1, yb - yt - .5));
   }
-  const vah = lo + (b + 1) * rp, val = lo + a * rp, pocP = lo + (poc + .5) * rp, fg = cfg.dark ? '#d1d4dc' : '#131722';
-  ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'left'; ctx.lineWidth = 1;
-  [['POC', pocP, '#f2b705', []], ['VAH', vah, '#2962ff', [5, 4]], ['VAL', val, '#2962ff', [5, 4]]].forEach(([n, p, col, dash]) => {
-    const y = Y(p); ctx.setLineDash(dash); ctx.strokeStyle = col; line(0, y, PW(), y); ctx.setLineDash([]);
-    ctx.fillStyle = col; ctx.fillText(`${n} ${fmt(p)}`, PW() - maxW - 6 - ctx.measureText(`${n} ${fmt(p)}`).width, y - 7);
+  ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = lAlign; ctx.lineWidth = 1;
+  [['POC', P.poc_p, '#f2b705', []], ['VAH', P.vah, '#2962ff', [5, 4]], ['VAL', P.val, '#2962ff', [5, 4]]].forEach(([n, p, col, dash]) => {
+    const y = Y(p); ctx.setLineDash(dash); ctx.strokeStyle = col; line(xl, y, xr, y); ctx.setLineDash([]);
+    if (label) { ctx.fillStyle = col; ctx.fillText(`${n} ${fmt(p)}`, lx, y - 7); }
   });
-  ctx.font = '12px -apple-system,sans-serif';
+  ctx.font = '12px -apple-system,sans-serif'; ctx.textAlign = 'left';
+}
+function drawVP(first, last) {
+  const rp = (yMax - yMin) / Math.max(10, Math.floor(PH() / 5)); if (!(rp > 0) || last < first) return;
+  if (cfg.vpMode === 'session' && TFMS[cfg.tf] < 864e5) {                 // one profile per UTC day (00:00 – 24:00)
+    const day = i => Math.floor(view[i].t / 864e5); let i = first;
+    while (i <= last) {
+      const d = day(i); let a = i, b = i;
+      while (a > 0 && day(a - 1) === d) a--;
+      while (b < view.length - 1 && day(b + 1) === d) b++;
+      const P = vpBuild(a, b, rp);
+      if (P) { const xl = X(a) - barW / 2, xr = b === view.length - 1 ? PW() : X(b) + barW / 2, x0 = Math.max(xl, 2); vpDraw(P, x0, 1, Math.min(220, Math.max(24, (xr - x0) * .45)), Math.max(xl, 0), xr, b >= last, xr - 6, 'right'); }   // histogram stays on screen when the session started off to the left
+      i = b + 1;
+    }
+  } else {                                                                 // visible range
+    const P = vpBuild(first, last, rp), maxW = Math.min(PW() * .3, 240);
+    if (P) vpDraw(P, PW(), -1, maxW, 0, PW(), true, PW() - maxW - 6, 'right');
+  }
 }
 
 /* ---------- start ---------- */
