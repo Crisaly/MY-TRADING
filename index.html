@@ -675,17 +675,17 @@ function posStats(d) {   // quantity from the risk settings, risk/reward, and wh
   const o = pget(d), {e, t, s} = position(d), dir = d.type === 'long' ? 1 : -1;
   const riskCash = o.riskU === '%' ? o.acct * o.risk / 100 : o.risk, sd = Math.abs(e.p - s.p), td = Math.abs(t.p - e.p), lot = o.lot > 0 ? o.lot : 1;
   const qty = sd > 0 ? +(Math.floor(riskCash / sd / lot + 1e-9) * lot).toFixed(8) : 0;
-  let status = 'pending', exit = e.p;
+  let status = 'pending', exit = e.p, exitI = null;
   const ie = Math.round(t2i(e.t)), last = view.length - 1, endI = Math.max(ie, Math.min(last, Math.round(t2i(t.t))));
   if (ie <= last) {
-    status = 'open'; exit = view[Math.min(endI, last)].c;
+    status = 'open'; exitI = Math.min(endI, last); exit = view[exitI].c;
     for (let k = Math.max(0, ie); k <= endI; k++) {
       const b = view[k]; if (!b) continue;
-      if (dir > 0 ? b.l <= s.p : b.h >= s.p) { status = 'closed'; exit = s.p; break; }          // stop first if one candle touched both
-      if (dir > 0 ? b.h >= t.p : b.l <= t.p) { status = 'closed'; exit = t.p; break; }
+      if (dir > 0 ? b.l <= s.p : b.h >= s.p) { status = 'closed'; exit = s.p; exitI = k; break; }          // stop first if one candle touched both
+      if (dir > 0 ? b.h >= t.p : b.l <= t.p) { status = 'closed'; exit = t.p; exitI = k; break; }
     }
   }
-  return {o, dir, qty, rr: sd > 0 ? td / sd : 0, sd, td, status, pnl: (exit - e.p) * dir * qty};
+  return {o, dir, qty, rr: sd > 0 ? td / sd : 0, sd, td, status, exit, exitI, pnl: (exit - e.p) * dir * qty};
 }
 function pill(cx, cy, text, bg, fg, size) {
   const oa = ctx.textAlign, ob = ctx.textBaseline, of = ctx.font; ctx.font = `${size}px -apple-system,sans-serif`;
@@ -738,8 +738,13 @@ function drawShape(d, sel, fg) {
       const st = posStats(d), o = st.o, {e,t,s,x1,x2} = position(d), ye = Y(e.p), yt = Y(t.p), ys = Y(s.p);
       ctx.fillStyle = o.tgtC; ctx.globalAlpha = o.tgtA * A; ctx.fillRect(x1, Math.min(ye, yt), x2-x1, Math.abs(yt-ye));
       ctx.fillStyle = o.stopC; ctx.globalAlpha = o.stopA * A; ctx.fillRect(x1, Math.min(ye, ys), x2-x1, Math.abs(ys-ye));
+      if (st.exitI != null) {   // darker shade over the part of the zone price has already travelled through
+        const yx = Y(st.exit), win = (st.exit - e.p) * st.dir >= 0, yEdge = win ? yt : ys, lo = Math.min(ye, yEdge), hi = Math.max(ye, yEdge), y1 = Math.max(lo, Math.min(hi, Math.min(ye, yx))), y2 = Math.max(lo, Math.min(hi, Math.max(ye, yx)));
+        ctx.fillStyle = win ? o.tgtC : o.stopC; ctx.globalAlpha = Math.min(1, (win ? o.tgtA : o.stopA) * 1.3) * A; ctx.fillRect(x1, y1, x2-x1, y2-y1);
+      }
       ctx.globalAlpha = A; ctx.strokeStyle = o.lineC; ctx.lineWidth = o.lineW; ctx.setLineDash(o.lineD === 'dashed' ? [9,6] : o.lineD === 'dotted' ? [2,5] : []);
       line(x1,ye,x2,ye); line(x1,yt,x2,yt); line(x1,ys,x2,ys); ctx.setLineDash([]);
+      if (st.exitI != null) { ctx.setLineDash([4,4]); ctx.strokeStyle = o.lineC; ctx.lineWidth = 1; line(x1, ye, Math.max(x1, X(st.exitI)), Y(st.exit)); ctx.setLineDash([]); }   // dotted line from the entry to the latest (or closing) candle
       const show = sel || o.always || (hover && !drag && hit(d, hover.x, hover.y));
       const vx1 = Math.max(x1, 0), vx2 = Math.min(x2, PW()), cx = (vx1 + vx2) / 2, pc = n => (Math.abs(n - e.p) / e.p * 100).toFixed(2), tick = Math.pow(10, -dec(Math.abs(e.p)));
       ctx.globalAlpha = 1;
