@@ -132,6 +132,9 @@ body.sideHidden #side{display:none}
 .drFoot button{border:1px solid currentColor;padding:8px 18px;border-radius:8px}
 .drFoot .pri{border-color:#222}
 .drChk{display:flex;align-items:center;gap:10px;margin:8px 0}
+.drSec{font-size:11px;opacity:.6;letter-spacing:.06em;margin:18px 0 4px}
+.drPos .drRow>span{min-width:140px}
+#drDlg input[type=range]{width:120px}
 #kbDlg table{border-collapse:collapse;width:100%}
 #kbDlg td{padding:5px 4px;border-bottom:1px solid #eee}
 #kbDlg td:last-child{text-align:right;white-space:nowrap}
@@ -259,7 +262,26 @@ body.domOn #dom{display:flex}
 
 <dialog id="drDlg"><div id="drBox">
   <div class="drHead"><h3 id="drTitle"></h3><button id="drX" title="Close">&#10005;</button></div>
-  <div class="drTabs" id="drTabs"><button data-tab="style">Style</button><button data-tab="text">Text</button><button data-tab="coords">Coordinates</button><button data-tab="vis">Visibility</button></div>
+  <div class="drTabs" id="drTabs"><button data-tab="pin" hidden>Inputs</button><button data-tab="pstyle" hidden>Style</button><button data-tab="style">Style</button><button data-tab="text">Text</button><button data-tab="coords">Coordinates</button><button data-tab="vis">Visibility</button></div>
+  <div class="drPane drPos" data-pane="pin">
+    <div class="drRow"><span>Account size</span><input type="number" id="pAcct" step="any" min="0"></div>
+    <div class="drRow"><span>Lot size</span><input type="number" id="pLot" step="any" min="0"></div>
+    <div class="drRow"><span>Risk</span><input type="number" id="pRisk" step="any" min="0"><select id="pRiskU"><option value="%">%</option><option value="cash">Cash</option></select></div>
+    <div class="drRow"><span>Entry price</span><input type="number" id="pEntry" step="any" min="0"></div>
+    <div class="drRow"><span>Profit level (ticks)</span><input type="number" id="pTicksT" step="1" min="1"></div>
+    <div class="drRow"><span>Stop level (ticks)</span><input type="number" id="pTicksS" step="1" min="1"></div>
+  </div>
+  <div class="drPane drPos" data-pane="pstyle">
+    <div class="drRow"><span>Lines</span><input type="color" id="pLineC"><select id="pLineD"><option value="solid">Solid<option value="dashed">Dashed<option value="dotted">Dotted</select><select id="pLineW"><option>1<option>2<option>3<option>4</select></div>
+    <div class="drRow"><span>Stop color</span><input type="color" id="pStopC"><input type="range" id="pStopA" min="0" max="100" title="Opacity"></div>
+    <div class="drRow"><span>Target color</span><input type="color" id="pTgtC"><input type="range" id="pTgtA" min="0" max="100" title="Opacity"></div>
+    <div class="drRow"><span>Text</span><input type="color" id="pTextC"><select id="pTextS"><option>8<option>10<option>12<option>14<option>16<option>20</select></div>
+    <label class="drChk"><input type="checkbox" id="pLbl"> Price labels</label>
+    <div class="drSec">INFO</div>
+    <div class="drRow"><span>Stats</span><select id="pStats"><option value="rr">Risk/reward ratio</option><option value="pnl">P&amp;L and quantity</option><option value="both">Both</option></select></div>
+    <label class="drChk"><input type="checkbox" id="pCompact"> Compact stats mode</label>
+    <label class="drChk"><input type="checkbox" id="pAlways"> Always show stats</label>
+  </div>
   <div class="drPane" data-pane="style">
     <div class="drRow" id="rowColor"><span>Color</span><input type="color" id="drColor"></div>
     <div class="drRow" id="rowAlpha"><span>Line opacity</span><input type="range" id="drAlpha" min="10" max="100"></div>
@@ -613,6 +635,7 @@ function paint() {
     for (let i = first; i <= last; i++) { if (v[i] == null) continue; pen ? ctx.lineTo(X(i),Y(v[i])) : ctx.moveTo(X(i),Y(v[i])); pen = true; }
     ctx.stroke(); ctx.lineWidth = 1;
   }
+  POSTAGS.length = 0;
   if (!hidden) drawings.forEach(d => { if (vis(d)) drawShape(d, d === selected || multi.includes(d), fg); });
   if (draft) drawShape(draft, true, fg);
   ctx.restore();
@@ -621,6 +644,7 @@ function paint() {
   for (const a of alerts.filter(a => a.symbol === cfg.symbol)) {
     ctx.setLineDash([6,4]); ctx.strokeStyle = '#7e57c2'; line(0,Y(a.price),PW(),Y(a.price)); ctx.setLineDash([]); tag(Y(a.price), fmt(a.price), '#7e57c2');
   }
+  for (const [y, tx, c] of POSTAGS) tag(y, tx, c);
   const lc = view[view.length-1], ly = Y(lc.c);
   ctx.setLineDash([2,3]); ctx.strokeStyle = fg; line(0,ly,PW(),ly); ctx.setLineDash([]);
   tag(ly, fmt(lc.c), cfg.dark ? '#555b69' : '#000', countdown());
@@ -643,6 +667,32 @@ function paint() {
 function position(d) {   // points: entry, target, stop (+ width from target point)
   const [e, t, s] = d.pts, x1 = sx(e), x2 = Math.max(x1+20, sx(t));
   return {e, t, s, x1, x2};
+}
+const PD = {lineC:'#787b86', lineD:'solid', lineW:1, stopC:'#f23645', stopA:.2, tgtC:'#089981', tgtA:.2, textC:'#ffffff', textS:12, lbl:false, stats:'rr', compact:true, always:false, acct:1000, lot:0.001, risk:25, riskU:'%'};
+const pget = d => Object.assign({}, PD, d);
+const POSTAGS = [];   // price-axis labels of position tools, drawn after the axis
+function posStats(d) {   // quantity from the risk settings, risk/reward, and whether price already hit the target or the stop
+  const o = pget(d), {e, t, s} = position(d), dir = d.type === 'long' ? 1 : -1;
+  const riskCash = o.riskU === '%' ? o.acct * o.risk / 100 : o.risk, sd = Math.abs(e.p - s.p), td = Math.abs(t.p - e.p), lot = o.lot > 0 ? o.lot : 1;
+  const qty = sd > 0 ? +(Math.floor(riskCash / sd / lot + 1e-9) * lot).toFixed(8) : 0;
+  let status = 'pending', exit = e.p;
+  const ie = Math.round(t2i(e.t)), last = view.length - 1, endI = Math.max(ie, Math.min(last, Math.round(t2i(t.t))));
+  if (ie <= last) {
+    status = 'open'; exit = view[Math.min(endI, last)].c;
+    for (let k = Math.max(0, ie); k <= endI; k++) {
+      const b = view[k]; if (!b) continue;
+      if (dir > 0 ? b.l <= s.p : b.h >= s.p) { status = 'closed'; exit = s.p; break; }          // stop first if one candle touched both
+      if (dir > 0 ? b.h >= t.p : b.l <= t.p) { status = 'closed'; exit = t.p; break; }
+    }
+  }
+  return {o, dir, qty, rr: sd > 0 ? td / sd : 0, sd, td, status, pnl: (exit - e.p) * dir * qty};
+}
+function pill(cx, cy, text, bg, fg, size) {
+  const oa = ctx.textAlign, ob = ctx.textBaseline, of = ctx.font; ctx.font = `${size}px -apple-system,sans-serif`;
+  const w = ctx.measureText(text).width + 14, h = size + 9;
+  ctx.fillStyle = bg; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 4); else ctx.rect(cx - w / 2, cy - h / 2, w, h); ctx.fill();
+  ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, cx, cy + .5);
+  ctx.textAlign = oa; ctx.textBaseline = ob; ctx.font = of;
 }
 function drawShape(d, sel, fg) {
   const q = d.pts.map(p => [sx(p), sy(p)]), [a, b = a] = q;
@@ -685,15 +735,27 @@ function drawShape(d, sel, fg) {
       ctx.fillStyle = dp >= 0 ? '#2962ff' : '#e0484d'; ctx.globalAlpha = .15; ctx.fillRect(a[0],a[1],b[0]-a[0],b[1]-a[1]); ctx.globalAlpha = A;
       ctx.fillText(`${fmt(dp)} (${(dp/d.pts[0].p*100).toFixed(2)}%)  ${bars} bars`, Math.min(a[0],b[0]), b[1] + (dp >= 0 ? -12 : 12)); break; }
     case 'long': case 'short': {
-      const {e,t,s,x1,x2} = position(d), ye = Y(e.p), yt = Y(t.p), ys = Y(s.p);
-      ctx.globalAlpha = .2; ctx.fillStyle = '#089981'; ctx.fillRect(x1,ye,x2-x1,yt-ye); ctx.fillStyle = '#e0484d'; ctx.fillRect(x1,ye,x2-x1,ys-ye); ctx.globalAlpha = A;
-      ctx.strokeStyle = '#787b86'; line(x1,ye,x2,ye);
-      const pc = p => (Math.abs(p-e.p)/e.p*100).toFixed(2) + '%';
-      ctx.fillStyle = fg;
-      if (sel) {
-      ctx.fillText(`Target ${fmt(t.p)} (${pc(t.p)})`, x1+4, yt + (yt<ye?-9:9));
-      ctx.fillText(`Stop ${fmt(s.p)} (${pc(s.p)})`, x1+4, ys + (ys<ye?-9:9));
-      ctx.fillText(`${d.type.toUpperCase()}  R:R ${(Math.abs(t.p-e.p)/(Math.abs(s.p-e.p)||1)).toFixed(2)}`, x1+4, ye-9); }
+      const st = posStats(d), o = st.o, {e,t,s,x1,x2} = position(d), ye = Y(e.p), yt = Y(t.p), ys = Y(s.p);
+      ctx.fillStyle = o.tgtC; ctx.globalAlpha = o.tgtA * A; ctx.fillRect(x1, Math.min(ye, yt), x2-x1, Math.abs(yt-ye));
+      ctx.fillStyle = o.stopC; ctx.globalAlpha = o.stopA * A; ctx.fillRect(x1, Math.min(ye, ys), x2-x1, Math.abs(ys-ye));
+      ctx.globalAlpha = A; ctx.strokeStyle = o.lineC; ctx.lineWidth = o.lineW; ctx.setLineDash(o.lineD === 'dashed' ? [9,6] : o.lineD === 'dotted' ? [2,5] : []);
+      line(x1,ye,x2,ye); line(x1,yt,x2,yt); line(x1,ys,x2,ys); ctx.setLineDash([]);
+      const show = sel || o.always || (hover && !drag && hit(d, hover.x, hover.y));
+      const vx1 = Math.max(x1, 0), vx2 = Math.min(x2, PW()), cx = (vx1 + vx2) / 2, pc = n => (Math.abs(n - e.p) / e.p * 100).toFixed(2), tick = Math.pow(10, -dec(Math.abs(e.p)));
+      ctx.globalAlpha = 1;
+      if (show && vx2 > vx1) {
+        const showPnl = o.stats !== 'rr', showRr = o.stats !== 'pnl', pend = st.status === 'pending';
+        let txt;
+        if (o.compact) txt = [showRr ? st.rr.toFixed(2) : '', showPnl ? (pend ? '0' : fmtD(st.pnl)) : ''].filter(Boolean).join('  ·  ');
+        else txt = [showPnl ? `${st.status === 'closed' ? 'Closed' : 'Open'} P&L: ${pend ? '0' : fmtD(st.pnl)}` : '', showPnl ? `Qty: ${st.qty}` : '', showRr ? `Risk/Reward Ratio: ${st.rr.toFixed(2)}` : ''].filter(Boolean).join(', ');
+        pill(cx, ye, txt, showPnl && !pend ? (st.pnl >= 0 ? o.tgtC : o.stopC) : o.tgtC, o.textC, o.textS);
+        if (!o.compact) {
+          const off = o.textS / 2 + 8;
+          pill(cx, yt + (yt < ye ? -off : off), `Target: ${fmt(st.td)} (${pc(t.p)}%) ${Math.round(st.td / tick)}, Amount: ${fmtQ(st.qty * st.td)}`, o.tgtC, o.textC, o.textS);
+          pill(cx, ys + (ys < ye ? -off : off), `Stop: ${fmt(st.sd)} (${pc(s.p)}%) ${Math.round(st.sd / tick)}, Amount: ${fmtQ(st.qty * st.sd)}`, o.stopC, o.textC, o.textS);
+        }
+      }
+      if (o.lbl) POSTAGS.push([ye, fmt(e.p), o.lineC], [yt, fmt(t.p), o.tgtC], [ys, fmt(s.p), o.stopC]);
       break; }
   }
   if (cut) ctx.restore();
@@ -746,7 +808,7 @@ function drawLabel(geo, col) {
   ctx.restore();
 }
 function handles(d) {
-  if (d.type === 'long' || d.type === 'short') { const {e,t,s,x1,x2} = position(d); return [[x1,Y(e.p)],[x2,Y(t.p)],[x1,Y(s.p)]]; }
+  if (d.type === 'long' || d.type === 'short') { const {e,t,s,x1,x2} = position(d); return [[x1,Y(e.p)],[x1,Y(t.p)],[x1,Y(s.p)],[x2,Y(e.p)]]; }
   return d.pts.map(p => [sx(p), sy(p)]);
 }
 function segDist(px,py,[x1,y1],[x2,y2]) { const dx=x2-x1, dy=y2-y1, k=Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/(dx*dx+dy*dy||1))); return Math.hypot(px-x1-k*dx, py-y1-k*dy); }
@@ -860,8 +922,9 @@ cv.addEventListener('pointermove', e => {
       if (s.type === 'long' || s.type === 'short') {
         const dir = s.type === 'long' ? 1 : -1, [en,tg,st] = s.pts;
         if (drag.h === 0) { const d = t2i(p.t)-t2i(en.t); s.pts = [p, {t:i2t(t2i(tg.t)+d), p:tg.p+p.p-en.p}, {t:p.t, p:st.p+p.p-en.p}]; }
-        else if (drag.h === 1) { tg.t = p.t; if ((p.p-en.p)*dir > 0) tg.p = p.p; }
-        else if ((p.p-en.p)*dir < 0) st.p = p.p;
+        else if (drag.h === 1) { if ((p.p-en.p)*dir > 0) tg.p = p.p; }
+        else if (drag.h === 2) { if ((p.p-en.p)*dir < 0) st.p = p.p; }
+        else tg.t = p.t;
       } else s.pts[drag.h] = p;
     }
   }
@@ -1465,10 +1528,37 @@ function showTab(n) {
   document.querySelectorAll('#drTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === n));
   document.querySelectorAll('.drPane').forEach(p => p.classList.toggle('on', p.dataset.pane === n));
 }
+function fillPos(d) {
+  const o = pget(d), {e, t, s} = position(d), tick = Math.pow(10, -dec(Math.abs(e.p))), set = (id, v) => { $(id).value = v; };
+  set('pAcct', o.acct); set('pLot', o.lot); set('pRisk', o.risk); set('pRiskU', o.riskU); set('pEntry', +e.p.toPrecision(10));
+  const tt = String(Math.max(1, Math.round(Math.abs(t.p - e.p) / tick))), ts = String(Math.max(1, Math.round(Math.abs(s.p - e.p) / tick)));
+  set('pTicksT', tt); $('pTicksT').dataset.orig = tt; set('pTicksS', ts); $('pTicksS').dataset.orig = ts;
+  set('pLineC', o.lineC); set('pLineD', o.lineD); set('pLineW', String(Math.round(o.lineW)));
+  set('pStopC', o.stopC); set('pStopA', Math.round(o.stopA * 100)); set('pTgtC', o.tgtC); set('pTgtA', Math.round(o.tgtA * 100));
+  set('pTextC', o.textC); set('pTextS', String(o.textS)); set('pStats', o.stats);
+  $('pLbl').checked = !!o.lbl; $('pCompact').checked = !!o.compact; $('pAlways').checked = !!o.always;
+}
+function applyPos(d) {
+  const num = (id, def) => { const v = parseFloat($(id).value); return isFinite(v) ? v : def; };
+  const {e, t, s} = position(d), dir = d.type === 'long' ? 1 : -1, tick = Math.pow(10, -dec(Math.abs(e.p)));
+  let tOff = t.p - e.p, sOff = s.p - e.p;
+  if ($('pTicksT').value !== $('pTicksT').dataset.orig) tOff = dir * Math.max(1, Math.abs(num('pTicksT', 1))) * tick;
+  if ($('pTicksS').value !== $('pTicksS').dataset.orig) sOff = -dir * Math.max(1, Math.abs(num('pTicksS', 1))) * tick;
+  const ne = num('pEntry', e.p); if (ne > 0) e.p = ne;
+  t.p = Math.max(1e-9, e.p + tOff); s.p = Math.max(1e-9, e.p + sOff);
+  Object.assign(d, {acct: Math.max(0, num('pAcct', 1000)), lot: Math.max(0, num('pLot', 0.001)), risk: Math.max(0, num('pRisk', 25)), riskU: $('pRiskU').value,
+    lineC: $('pLineC').value, lineD: $('pLineD').value, lineW: +$('pLineW').value, stopC: $('pStopC').value, stopA: +$('pStopA').value / 100,
+    tgtC: $('pTgtC').value, tgtA: +$('pTgtA').value / 100, textC: $('pTextC').value, textS: +$('pTextS').value, stats: $('pStats').value,
+    lbl: $('pLbl').checked, compact: $('pCompact').checked, always: $('pAlways').checked});
+}
 function openDrawDlg(d, tab) {
   drD = d; const t = d.type, isText = t === 'text', L = d.label || {};
   const fgDef = cfg.dark ? '#d1d4dc' : '#131722';
   $('drTitle').textContent = DNAMES[t] || t;
+  const isPos = t === 'long' || t === 'short';
+  ['pin', 'pstyle'].forEach(k => document.querySelector(`#drTabs [data-tab=${k}]`).hidden = !isPos);
+  document.querySelector('#drTabs [data-tab=coords]').hidden = isPos;
+  if (isPos) fillPos(d);
   const hasStyle = !isText && !(NOCOLOR.includes(t) && NOLINE.includes(t)) && t !== 'long' && t !== 'short' && t !== 'measure';
   const canText = isText || LABELABLE.includes(t);
   document.querySelector('#drTabs [data-tab=style]').hidden = !hasStyle;
@@ -1489,7 +1579,7 @@ function openDrawDlg(d, tab) {
     + (t === 'vline' ? '' : `<input type="number" step="any" data-i="${i}" data-k="p" value="${+p.p.toPrecision(10)}" title="Price">`)
     + (t === 'hline' || t === 'long' && i > 0 || t === 'short' && i > 0 ? '' : `<input type="datetime-local" data-i="${i}" data-k="t" data-orig="${toLocal(p.t)}" value="${toLocal(p.t)}" title="Time">`) + '</div>').join('');
   $('drVis').innerHTML = TFNAMES.concat(customTfs.map(t => [t, t])).map(([k, n]) => `<label class="drChk"><input type="checkbox" data-tf="${k}"${(d.hideTf || []).includes(k) ? '' : ' checked'}> ${n}</label>`).join('');
-  showTab(tab === 'text' && canText ? 'text' : hasStyle ? 'style' : canText ? 'text' : 'coords');
+  showTab(isPos ? (tab === 'pstyle' ? 'pstyle' : 'pin') : tab === 'text' && canText ? 'text' : hasStyle ? 'style' : canText ? 'text' : 'coords');
   $('drDlg').showModal();
 }
 document.querySelectorAll('#drTabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -1506,7 +1596,8 @@ $('drOk').onclick = () => {
   const st = {color: $('drTColor').value, size: +$('drTSize').value, bold: $('drB').classList.contains('on'), italic: $('drI').classList.contains('on')}, txt = $('drText').value;
   if (t === 'text') { if (txt.trim()) d.text = txt; Object.assign(d, st); }
   else if (LABELABLE.includes(t)) { if (txt.trim()) d.label = Object.assign({text: txt, v: $('drV').value, h: $('drH').value}, st); else delete d.label; }
-  document.querySelectorAll('#drCoords input').forEach(inp => {
+  if (t === 'long' || t === 'short') applyPos(d);
+  (t === 'long' || t === 'short' ? [] : document.querySelectorAll('#drCoords input')).forEach(inp => {
     const pt = d.pts[+inp.dataset.i]; if (!pt) return;
     if (inp.dataset.k === 'p') { const v = +inp.value; if (isFinite(v) && v > 0 && inp.value !== '') pt.p = v; }
     else if (inp.value && inp.value !== inp.dataset.orig) { const v = new Date(inp.value).getTime(); if (isFinite(v)) pt.t = v; }
