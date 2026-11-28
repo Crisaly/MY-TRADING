@@ -31,6 +31,34 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.4;stroke
 #sell{background:#e0484d}#buy{background:#3562f6}
 #quote b{display:block;font-size:14px}
 #legend{position:absolute;left:10px;top:58px;font-size:12px;pointer-events:none;color:#555;line-height:1.6;right:90px}
+#indList{position:absolute;left:6px;top:58px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;max-height:calc(100% - 130px);overflow-y:auto;scrollbar-width:none;z-index:3;max-width:calc(100% - 90px)}
+.iRow{display:flex;align-items:center;gap:1px;border:1px solid transparent;border-radius:5px;padding:0 3px 0 5px;height:24px;flex:none;font-size:13px;color:#434651;cursor:default;max-width:100%}
+.iRow .iName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:4px;max-width:260px}
+.iRow .iv{white-space:nowrap;overflow:hidden;font-size:11px;margin-right:4px}
+.iRow button{padding:0;width:25px;height:20px;display:none;place-items:center;flex:none}
+.iRow svg{width:16px;height:16px;stroke-width:1.6}
+.iRow:hover,.iRow.sel{background:#fff;border-color:#d1d4dc}
+.iRow:hover button,.iRow.sel button{display:grid}
+.iRow.off .iName{color:#b2b5be}
+.iRow.off button[data-ia=eye]{display:grid}
+.iRow.err .iName{color:#e0484d}
+#indFold{border:1px solid #d1d4dc;background:#fff;padding:0 8px;height:20px;font-size:12px;flex:none;margin-top:2px;display:flex;align-items:center;gap:4px}
+#paneRows .iRow{position:absolute;left:6px;z-index:2;height:20px;max-width:calc(100% - 90px)}
+#indMenu{position:absolute;z-index:6;background:#fff;border:1px solid #d1d4dc;border-radius:8px;box-shadow:0 8px 28px #0003;padding:4px;min-width:170px}
+#indMenu button{display:block;width:100%;text-align:left;font-size:13px}
+#isDlg{width:min(420px,96vw);padding:0}
+.isHead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px 6px}.isHead h3{margin:0}
+.isTabs{display:flex;gap:4px;padding:0 14px;border-bottom:1px solid #e0e3eb}
+.isTabs button{border-radius:0;border-bottom:3px solid transparent}.isTabs button.act{border-bottom-color:currentColor;font-weight:600}
+#isBody{padding:6px 18px;max-height:min(52vh,440px);overflow-y:auto}
+#isBody select{border:1px solid #d1d4dc;border-radius:6px;padding:6px 8px;width:140px;background:transparent}
+#isBody label span:first-child{flex:1}
+#isBody .grp{font-size:11px;text-transform:uppercase;opacity:.6;margin:12px 0 2px}
+#isBody .stRow{display:flex;align-items:center;gap:10px;margin:9px 0}
+#isBody .stRow label{margin:0;flex:1;justify-content:flex-start}
+#isBody .stRow select{width:70px}
+.isFoot{display:flex;gap:8px;padding:12px 18px;border-top:1px solid #e0e3eb}
+#toast button{color:#7ea2ff;font-weight:700;margin-left:10px;padding:0 4px}
 #msg{position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);background:#222;color:#fff;padding:10px 16px;border-radius:8px;display:none;max-width:85%;text-align:center}
 #toast{position:fixed;right:16px;bottom:100px;background:#222;color:#fff;padding:12px 16px;border-radius:8px;display:none;z-index:20}
 #bottom{display:flex;align-items:center;gap:2px;background:#fff;padding:3px 8px;overflow-x:auto;flex:none;border-top:1px solid #e0e3eb;font-size:13px}
@@ -208,6 +236,7 @@ body.pane #top{padding:3px 6px}
 body.pane #top>*:not(#symbol):not(#tf):not(#ctype):not(#indBtn):not(#pineBtn):not(#setBtn):not(.sep):not(.grow){display:none}
 body.pane #paper,body.pane #bottom,body.pane #quote{display:none}
 body.pane #legend{top:8px}
+body.pane #indList{top:26px}
 body.pane.tight #side{display:none}
 body.pane #symbol{width:100px}
 /* footprint DOM panel */
@@ -253,6 +282,8 @@ body.domOn #dom{display:flex}
     <button id="axTog" title="Hide price bar" aria-label="Hide price bar">&#8250;</button><canvas id="cv"></canvas>
     <div id="quote"><button id="sell"><b id="bid">–</b>SELL</button><span id="spread"></span><button id="buy"><b id="ask">–</b>BUY</button></div>
     <div id="legend"></div>
+    <div id="indList"></div><div id="paneRows"></div>
+    <div id="indMenu" hidden></div>
     <div id="msg"></div>
     <button id="sideTog" title="Hide drawing toolbar" aria-label="Hide drawing toolbar">&#8249;</button>
     <div id="nav">
@@ -369,6 +400,11 @@ body.domOn #dom{display:flex}
   <label>Profile range <select id="vpMode"><option value="visible">Visible range<option value="session">Daily session (UTC)</select></label>
   <div id="indPineSummary" style="margin-top:10px;border-top:1px solid #e0e3eb;padding-top:8px;font-size:13px"></div>
   <div class="row"><button type="button" id="openPineFromInd">📜 Manage Pine Scripts…</button><button class="pri">Done</button></div></form></dialog>
+
+<dialog id="isDlg"><div class="isHead"><h3 id="isTitle"></h3><button type="button" id="isX" aria-label="Close">✕</button></div>
+  <div class="isTabs"><button type="button" data-istab="in">Inputs</button><button type="button" data-istab="st">Style</button></div>
+  <div id="isBody"></div>
+  <div class="isFoot"><button type="button" id="isDef">Defaults</button><span class="grow"></span><button type="button" id="isCancel">Cancel</button><button type="button" class="pri" id="isOk">Ok</button></div></dialog>
 
 <dialog id="pineDlg">
   <div id="pineHead">
@@ -521,7 +557,7 @@ const cv = $('cv'), ctx = cv.getContext('2d');
 let W = 0, H = 0;
 let AXW = load('axHide', false) ? 0 : 78;
 const AXH = 28;
-const defW = () => cfg.ctype === 'footprint' ? 90 : Math.max(6, Math.min(24, PW() / 70));
+const defW = () => cfg.ctype === 'footprint' ? 90 : Math.max(3.5, Math.min(12, PW() / 380));   // TradingView-like opening zoom
 const PW = () => W - AXW, PH = () => H - AXH;
 let mainH = () => PH(); // height of main price chart (adjusted dynamically if Pine sub-panes exist)
 
@@ -858,7 +894,7 @@ function executePineScript(compiled, bars, ctxInfo = {}) {
   const N = bars.length, sym = ctxInfo.symbol || 'BTCUSDT', tfMs = ctxInfo.tfMs || (N > 1 ? bars[1].t - bars[0].t : 864e5);
   let bi = 0, ln = 0, ops = 0;
   const started = Date.now();
-  const out = {title: compiled.title, overlay: compiled.overlay, plots: [], hlines: [], fills: [], shapes: [], candles: [], bg: [], barColors: [], lines: [], labels: [], boxes: [], tables: [], strategy: null, alerts: 0, warnings: []};
+  const out = {title: compiled.title, overlay: compiled.overlay, inputs: [], plots: [], hlines: [], fills: [], shapes: [], candles: [], bg: [], barColors: [], lines: [], labels: [], boxes: [], tables: [], strategy: null, alerts: 0, warnings: []};
   const warn = m => { if (!out.warnings.includes(m)) out.warnings.push(m); };
   const rtErr = m => { throw new Error(`Line ${ln+1}: ${m}`); };
   const tick = () => { if (++ops % 5000 === 0 && Date.now() - started > 8000) rtErr('script is too slow (stopped after 8 seconds). Check for very large loops.'); };
@@ -1493,10 +1529,29 @@ function executePineScript(compiled, bars, ctxInfo = {}) {
     if (ns === 'request') rtErr(`request.${name} needs TradingView's data servers and is not available here`);
     rtErr(`${ns}.${name} is not supported yet`);
   }
+  const inputKeys = new Map(), keyCount = {};
   function input(e, kind, args, named) {
     const def = named.defval !== undefined ? named.defval : args[0];
-    // "source" style inputs must follow the series every bar, so return the live value
-    return def;
+    let key = inputKeys.get(e.id);
+    if (key === undefined) {
+      const defNode = e.named.defval || e.args[0], srcName = defNode && defNode.k === 'id' && SRC[defNode.name] ? defNode.name : null;
+      let type = kind || (srcName ? 'source' : typeof def === 'boolean' ? 'bool' : typeof def === 'number' ? 'float' : pineRGBA(def) ? 'color' : 'string');
+      if (!kind && typeof named.type === 'string') type = named.type === 'integer' ? 'int' : named.type === 'resolution' ? 'timeframe' : named.type;
+      if (!kind && type === 'float' && Number.isInteger(def) && !(defNode && defNode.k === 'lit' && String(defNode.v).includes('.'))) type = 'int';
+      // positional arguments differ by input type: (defval, title, options) or (defval, title, minval, maxval, step)
+      const numeric = type === 'int' || type === 'float', third = args[2];
+      const title = String(named.title ?? args[1] ?? '');
+      const base = (named.group || '') + '|' + (title || type);
+      key = base + '|' + (keyCount[base] = (keyCount[base] || 0) + 1);
+      inputKeys.set(e.id, key);
+      out.inputs.push({key, type, title: title || 'Input ' + (out.inputs.length + 1), def: type === 'source' ? srcName || 'close' : def, group: named.group || '',
+        options: named.options || (Array.isArray(third) ? third : null), min: named.minval ?? (numeric && !Array.isArray(third) ? third : undefined), max: named.maxval ?? (numeric ? args[3] : undefined), step: named.step ?? (numeric ? args[4] : undefined)});
+    }
+    const user = ctxInfo.inputs ? ctxInfo.inputs[key] : undefined;
+    const meta = out.inputs.find(m => m.key === key);
+    if (user === undefined) return def;
+    if (meta.type === 'source') return SRC[user] ? SRC[user](bi) : def;
+    return user;
   }
   function strategyCall(e, name, args, named) {
     const a = names => { const o = {...named}; args.forEach((v, i) => { if (o[names[i]] === undefined) o[names[i]] = v; }); return o; };
@@ -1571,7 +1626,7 @@ function getPineOutputs() {
     if (failed.has(s.id)) { results.push(failed.get(s.id)); continue; }
     try {
       const comp = compilePine(s.code);
-      results.push({id: s.id, ...executePineScript(comp, view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf]})});
+      results.push({id: s.id, ...applyPineStyle(executePineScript(comp, view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf], inputs: s.inputs}), s.style)});
     } catch (e) {
       const r = {id: s.id, title: s.title, error: e.message, overlay: true};
       failed.set(s.id, r); results.push(r);
@@ -1750,7 +1805,7 @@ function drawPineSubPanes(subPanes, first, last, fg, bg, subH) {
     ctx.restore();
     ctx.font = '11px -apple-system,sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = fg;
     const vals = pane.plots.filter(p => !p.hidden).map(p => { const v = p.series[last]; return v != null && isFinite(v) ? `${p.title}: ${fmt(v, 2)}` : ''; }).filter(Boolean).join('  ');
-    ctx.fillText(`${pane.title}  ${vals}`, 10, yTop + 11);
+    placePaneRow(pane.id, yTop, vals);
     if (AXW > 0) { ctx.fillText(fmt(hi, 2), PW() + 8, yTop + padY); ctx.fillText(fmt(lo, 2), PW() + 8, yTop + subH - padY); }
   });
   ctx.font = '12px -apple-system,sans-serif';
@@ -1814,7 +1869,7 @@ $('pineRun').onclick = () => {
   if (!code) return;
   try {
     const compiled = compilePine(code);
-    const test = view.length ? executePineScript(compiled, view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf]}) : null;   // run once before saving
+    const test = view.length ? executePineScript(compiled, view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf], inputs: pineScripts.find(x => x.id === pineEditId)?.inputs}) : null;   // run once before saving
     if (pineEditId) {
       const idx = pineScripts.findIndex(x => x.id === pineEditId);
       if (idx >= 0) pineScripts[idx] = {...pineScripts[idx], title: compiled.title, overlay: compiled.overlay, code, on: true};
@@ -1862,6 +1917,219 @@ $('pineList').onchange = e => {
     if (s) { s.on = e.target.checked; save('pine', pineScripts); pineCache.sig = ''; renderPineList(); render(); }
   }
 };
+
+/* ---------- on-chart indicator list (hide / settings / source / remove / more) ---------- */
+const IICON = {
+  eye: '<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20L20 4"/>',
+  gear: '<path d="M8 4h8l5 8-5 8H8l-5-8z"/><circle cx="12" cy="12" r="3"/>',
+  code: '<path d="M9 4c-3 0-2 3-2 5s-2 3-3 3c1 0 3 1 3 3s-1 5 2 5M15 4c3 0 2 3 2 5s2 3 3 3c-1 0-3 1-3 3s1 5-2 5"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  more: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'
+};
+const BUILTINS = {
+  sma: {on: 'smaOn', hide: 'smaHide', name: () => 'SMA ' + cfg.smaN, n: 'smaN', color: ['smaC', '#2962ff'], width: 'smaW'},
+  ema: {on: 'emaOn', hide: 'emaHide', name: () => 'EMA ' + cfg.emaN, n: 'emaN', color: ['emaC', '#9c27b0'], width: 'emaW'},
+  vol: {on: 'volOn', hide: 'volHide', name: () => 'Volume'},
+  vp: {on: 'vpOn', hide: 'vpHide', name: () => 'Volume Profile'}
+};
+let indSig = '', indSel = null, indFolded = load('indFold', false);
+const escH = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+const indSaveCfg = () => save(CFGKEY, cfg);
+const pineChanged = () => { save('pine', pineScripts); pineCache.sig = ''; pineCache.base = ''; indSig = ''; renderPineList(); render(); };
+
+function indItems() {
+  const out = Object.entries(BUILTINS).filter(([, b]) => cfg[b.on]).map(([k, b]) => ({id: '@' + k, name: b.name(), off: !!cfg[b.hide], built: k}));
+  for (const s of pineScripts) {
+    const r = pineCache.results.find(x => x.id === s.id);
+    out.push({id: s.id, name: s.title, off: !s.on, err: s.on && r?.error, pane: s.on && !!r && !r.error && !r.overlay});
+  }
+  return out;
+}
+function indRowHTML(it) {
+  const btn = (a, icon, title) => `<button type="button" data-ia="${a}" title="${title}" aria-label="${title}"><svg viewBox="0 0 24 24">${IICON[icon]}</svg></button>`;
+  return `<div class="iRow${it.off ? ' off' : ''}${it.err ? ' err' : ''}${indSel === it.id ? ' sel' : ''}" data-ind="${it.id}"${it.err ? ` title="${escH(it.err)}"` : ''}><span class="iName">${it.err ? '⚠ ' : ''}${escH(it.name)}</span>${it.pane ? '<span class="iv"></span>' : ''}`
+    + btn('eye', it.off ? 'eyeOff' : 'eye', it.off ? 'Show' : 'Hide') + btn('set', 'gear', 'Settings') + (it.built ? '' : btn('code', 'code', 'Source code')) + btn('del', 'trash', 'Remove') + btn('more', 'more', 'More') + '</div>';
+}
+function syncIndList() {   // rebuild only when something changed, so clicks are never lost on live ticks
+  const items = indItems(), sig = JSON.stringify([items, indFolded]);
+  if (sig === indSig) return;
+  indSig = sig;
+  const main = items.filter(i => !i.pane);
+  $('indList').innerHTML = (indFolded ? '' : main.map(indRowHTML).join('')) + (main.length ? `<button type="button" id="indFold" title="${indFolded ? 'Show' : 'Hide'} indicator list">${indFolded ? '⌄ ' + main.length : '⌃'}</button>` : '');
+  $('paneRows').innerHTML = items.filter(i => i.pane).map(indRowHTML).join('');
+}
+function placePaneRow(id, y, values) {
+  const row = $('paneRows').querySelector(`[data-ind="${id}"]`); if (!row) return;
+  row.style.top = (y + 2) + 'px'; const v = row.querySelector('.iv'); if (v.textContent !== values) v.textContent = values;
+}
+function placeIndList() {
+  const el = $('legend'), base = PANE != null ? 8 : 58, top = el.textContent ? el.offsetTop + el.offsetHeight + 3 : base;
+  $('indList').style.top = top + 'px'; $('indList').style.maxHeight = Math.max(40, mainH() - top - 24) + 'px';
+}
+function closeIndMenu() { $('indMenu').hidden = true; }
+
+function toggleInd(id) {
+  if (id[0] === '@') { const b = BUILTINS[id.slice(1)]; cfg[b.hide] = !cfg[b.hide]; indSaveCfg(); indSig = ''; render(); return; }
+  const s = pineScripts.find(x => x.id === id); if (s) { s.on = !s.on; pineChanged(); }
+}
+function removeInd(id) {
+  let undo, name;
+  if (id[0] === '@') {
+    const k = id.slice(1), b = BUILTINS[k]; name = b.name(); cfg[b.on] = false; cfg[b.hide] = false; if ($(b.on)) $(b.on).checked = false; indSaveCfg();
+    undo = () => { cfg[b.on] = true; if ($(b.on)) $(b.on).checked = true; indSaveCfg(); indSig = ''; render(); };
+    indSig = ''; render();
+  } else {
+    const i = pineScripts.findIndex(x => x.id === id); if (i < 0) return;
+    const [old] = pineScripts.splice(i, 1); name = old.title; if (pineEditId === id) pineEditId = null; pineChanged();
+    undo = () => { pineScripts.splice(i, 0, old); pineChanged(); };
+  }
+  toast(`Removed "${name}"`);
+  const u = document.createElement('button'); u.textContent = 'Undo'; u.onclick = () => { $('toast').style.display = 'none'; undo(); }; $('toast').append(u);
+}
+function indMenu(id, anchor) {
+  const m = $('indMenu'), i = pineScripts.findIndex(x => x.id === id), items = [['eye', 'Hide / Show'], ['set', 'Settings…']];
+  if (id[0] !== '@') items.push(['code', 'Source code'], ['dup', 'Make a copy'], ...(i > 0 ? [['up', 'Move up']] : []), ...(i < pineScripts.length - 1 ? [['down', 'Move down']] : []), ['reset', 'Reset settings']);
+  items.push(['del', 'Remove']);
+  m.innerHTML = items.map(([a, t]) => `<button type="button" data-ia="${a}">${t}</button>`).join(''); m.dataset.ind = id; m.hidden = false;
+  const w = $('wrap').getBoundingClientRect(), r = anchor.getBoundingClientRect();
+  m.style.left = Math.max(4, Math.min(r.left - w.left, W - m.offsetWidth - 4)) + 'px';
+  m.style.top = Math.max(4, Math.min(r.bottom - w.top + 3, H - m.offsetHeight - 4)) + 'px';
+}
+function indAction(a, id, anchor) {
+  const i = pineScripts.findIndex(x => x.id === id), s = pineScripts[i];
+  if (a === 'more') return indMenu(id, anchor);
+  closeIndMenu();
+  if (a === 'eye') toggleInd(id);
+  else if (a === 'set') openIndSettings(id);
+  else if (a === 'code' && s) openPineDlg(s);
+  else if (a === 'del') removeInd(id);
+  else if (a === 'dup' && s) { pineScripts.splice(i + 1, 0, {...JSON.parse(JSON.stringify(s)), id: 'ps_' + Date.now()}); pineChanged(); }
+  else if ((a === 'up' || a === 'down') && s) { const j = i + (a === 'up' ? -1 : 1); [pineScripts[i], pineScripts[j]] = [pineScripts[j], pineScripts[i]]; pineChanged(); }
+  else if (a === 'reset' && s) { delete s.inputs; delete s.style; pineChanged(); }
+}
+function indClick(e) {
+  if (e.target.closest('#indFold')) { indFolded = !indFolded; save('indFold', indFolded); indSig = ''; render(); return; }
+  const row = e.target.closest('[data-ind]'); if (!row) return;
+  const b = e.target.closest('[data-ia]');
+  if (b) return indAction(b.dataset.ia, row.dataset.ind, b);
+  indSel = indSel === row.dataset.ind ? null : row.dataset.ind;   // tap a name to keep its buttons open (touch screens)
+  indSig = ''; render();
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('#indList,#paneRows')) return;
+  if (!e.target.closest('#indMenu')) { closeIndMenu(); if (indSel) { indSel = null; indSig = ''; render(); } }
+});
+$('indList').addEventListener('click', indClick); $('paneRows').addEventListener('click', indClick);
+$('indList').addEventListener('dblclick', e => { const r = e.target.closest('[data-ind]'); if (r && !e.target.closest('button')) openIndSettings(r.dataset.ind); });
+$('paneRows').addEventListener('dblclick', e => { const r = e.target.closest('[data-ind]'); if (r && !e.target.closest('button')) openIndSettings(r.dataset.ind); });
+$('indMenu').addEventListener('click', e => { const b = e.target.closest('[data-ia]'); if (b) { e.stopPropagation(); indAction(b.dataset.ia, $('indMenu').dataset.ind, b); } });
+
+/* ---------- settings window (Inputs / Style) ---------- */
+let isState = null;
+const hexOf = (c, d = '#2962ff') => { const x = pineRGBA(c); return x ? '#' + x.slice(0, 3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('') : d; };
+function applyPineStyle(res, st) {   // the user's Style tab choices, laid over what the script produced
+  if (!st) return res;
+  res.plots.forEach((p, i) => { const o = st['p' + i]; if (!o) return; if (o.off) p.hidden = true; if (o.color) p.colors = p.colors.map(c => c === 'transparent' ? c : o.color); if (o.width) p.linewidth = o.width; });
+  res.hlines = res.hlines.map((h, i) => { const o = st['h' + i]; if (!o) return h; return {...h, color: o.off ? 'transparent' : o.color || h.color, width: o.width || h.width}; });
+  if (st.shapes?.off) res.shapes = [];
+  if (st.fills?.off) res.fills = [];
+  if (st.bg?.off) res.bg = [];
+  if (st.bars?.off) res.barColors = [];
+  if (st.draw?.off) { res.lines = []; res.labels = []; res.boxes = []; }
+  if (st.tables?.off) res.tables = [];
+  if (st.trades?.off && res.strategy) res.strategy = {...res.strategy, marks: []};
+  return res;
+}
+function openIndSettings(id) {
+  const built = id[0] === '@' ? id.slice(1) : null, s = built ? null : pineScripts.find(x => x.id === id);
+  if (!built && !s) return;
+  let meta = null, error = '';
+  if (s) { try { meta = executePineScript(compilePine(s.code), view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf], inputs: s.inputs}); } catch (e) { error = e.message; } }
+  isState = {id, built, s, meta, error, tab: 'in', backup: s ? JSON.stringify({inputs: s.inputs, style: s.style}) : JSON.stringify(cfg)};
+  $('isTitle').textContent = built ? BUILTINS[built].name() : s.title;
+  paintIndSettings(); $('isDlg').showModal();
+}
+function styleRows() {
+  const m = isState.meta, st = isState.s.style || {}, rows = [];
+  m.plots.forEach((p, i) => rows.push({k: 'p' + i, name: p.title, color: hexOf(st['p' + i]?.color || [...p.colors].reverse().find(c => c && c !== 'transparent')), width: st['p' + i]?.width || p.linewidth, off: st['p' + i]?.off}));
+  m.hlines.forEach((p, i) => rows.push({k: 'h' + i, name: p.title || 'Level ' + p.price, color: hexOf(st['h' + i]?.color || p.color), width: st['h' + i]?.width || p.width, off: st['h' + i]?.off}));
+  for (const [k, name, has] of [['shapes', 'Shapes', m.shapes.length], ['fills', 'Fills', m.fills.length], ['bg', 'Background colours', m.bg.length], ['bars', 'Candle colours', m.barColors.length], ['draw', 'Lines, labels and boxes', m.lines.length + m.labels.length + m.boxes.length], ['tables', 'Tables', m.tables.length], ['trades', 'Trade arrows', m.strategy?.marks.length]])
+    if (has) rows.push({k, name, off: st[k]?.off, simple: true});
+  return rows;
+}
+function paintIndSettings() {
+  const {built, s, meta, error, tab} = isState, body = $('isBody');
+  document.querySelectorAll('[data-istab]').forEach(b => b.classList.toggle('act', b.dataset.istab === tab));
+  const widths = w => `<select data-sw>${[...new Set([1, 1.5, 2, 3, 4, +w || 1.5])].sort((a, b) => a - b).map(v => `<option value="${v}"${+w === v ? ' selected' : ''}>${v}px</option>`).join('')}</select>`;
+  if (built) {
+    const b = BUILTINS[built];
+    if (tab === 'in') body.innerHTML = b.n ? `<label><span>Length</span><input type="number" data-bn min="1" max="5000" value="${cfg[b.n]}"></label>` : built === 'vp' ? `<label><span>Profile range</span><select data-bvp><option value="visible"${cfg.vpMode === 'visible' ? ' selected' : ''}>Visible range</option><option value="session"${cfg.vpMode === 'session' ? ' selected' : ''}>Daily session (UTC)</option></select></label>` : '<p>No inputs.</p>';
+    else body.innerHTML = b.color ? `<div class="stRow"><label>Line</label><input type="color" data-bc value="${cfg[b.color[0]] || b.color[1]}">${widths(cfg[b.width] || 1.5)}</div>` : '<p>No style options.</p>';
+    return;
+  }
+  if (error) { body.innerHTML = `<p style="color:#e0484d">${escH(error)}</p>`; return; }
+  if (tab === 'in') {
+    let group = null;
+    body.innerHTML = meta.inputs.map((m, i) => {
+      const v = s.inputs?.[m.key] ?? m.def, a = `data-in="${i}"`;
+      const opts = m.options || (m.type === 'source' ? ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4', 'hlcc4'] : m.type === 'timeframe' ? [...new Set([String(v), '', '60', '240', 'D', 'W', 'M'])] : null);
+      let field;
+      if (m.type === 'bool') field = `<input type="checkbox" ${a}${v ? ' checked' : ''}>`;
+      else if (opts) field = `<select ${a}>${opts.map((o, j) => `<option value="${j}"${o === v ? ' selected' : ''}>${escH(o === '' ? 'Chart' : o)}</option>`).join('')}</select>`;
+      else if (m.type === 'color') field = `<input type="color" ${a} value="${hexOf(v)}">`;
+      else if (m.type === 'int' || m.type === 'float' || m.type === 'price') field = `<input type="number" ${a} value="${v}"${m.min != null ? ` min="${m.min}"` : ''}${m.max != null ? ` max="${m.max}"` : ''} step="${m.step ?? (m.type === 'int' ? 1 : 'any')}">`;
+      else field = `<input type="text" ${a} value="${escH(v)}">`;
+      const head = m.group !== group ? (group = m.group, m.group ? `<div class="grp">${escH(m.group)}</div>` : '') : '';
+      return head + `<label><span>${escH(m.title)}</span>${field}</label>`;
+    }).join('') || '<p style="opacity:.7">This script has no inputs. Add input() lines in the source code to get settings here.</p>';
+    isState.opts = meta.inputs.map(m => m.options || (m.type === 'source' ? ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4', 'hlcc4'] : m.type === 'timeframe' ? [...new Set([String(s.inputs?.[m.key] ?? m.def), '', '60', '240', 'D', 'W', 'M'])] : null));
+  } else body.innerHTML = styleRows().map(r => `<div class="stRow" data-sk="${r.k}"><label><input type="checkbox" data-son${r.off ? '' : ' checked'}> ${escH(r.name)}</label>${r.simple ? '' : `<input type="color" data-sc value="${r.color}">${widths(r.width)}`}</div>`).join('') || '<p style="opacity:.7">Nothing to style.</p>';
+}
+$('isBody').addEventListener('change', e => {
+  const t = e.target, {built, s, meta} = isState;
+  if (built) {
+    const b = BUILTINS[built];
+    if (t.matches('[data-bn]')) { cfg[b.n] = Math.max(1, Math.min(5000, Math.round(+t.value) || cfg[b.n])); t.value = cfg[b.n]; if ($(b.n)) $(b.n).value = cfg[b.n]; $('isTitle').textContent = b.name(); }
+    else if (t.matches('[data-bc]')) cfg[b.color[0]] = t.value;
+    else if (t.matches('[data-sw]')) cfg[b.width] = +t.value;
+    else if (t.matches('[data-bvp]')) { cfg.vpMode = t.value; if ($('vpMode')) $('vpMode').value = t.value; }
+    indSaveCfg(); indSig = ''; render(); return;
+  }
+  if (t.matches('[data-in]')) {
+    const i = +t.dataset.in, m = meta.inputs[i];
+    let v;
+    if (m.type === 'bool') v = t.checked;
+    else if (t.tagName === 'SELECT') v = isState.opts[i][+t.value];
+    else if (t.type === 'number') { if (t.value === '' || !isFinite(+t.value)) return; v = +t.value; if (m.min != null) v = Math.max(m.min, v); if (m.max != null) v = Math.min(m.max, v); if (m.type === 'int') v = Math.round(v); t.value = v; }
+    else v = t.value;
+    s.inputs = {...s.inputs, [m.key]: v};
+  } else {
+    const row = t.closest('[data-sk]'); if (!row) return;
+    const change = t.matches('[data-son]') ? {off: !t.checked} : t.matches('[data-sc]') ? {color: t.value} : {width: +t.value};
+    s.style = {...s.style, [row.dataset.sk]: {...s.style?.[row.dataset.sk], ...change}};
+  }
+  pineChanged();
+});
+function closeIndSettings(keep) {
+  const st = isState; if (!st) return; isState = null;
+  if (!keep) {
+    if (st.built) { const old = JSON.parse(st.backup), b = BUILTINS[st.built]; for (const k of [b.n, b.color?.[0], b.width, st.built === 'vp' ? 'vpMode' : null]) if (k) { if (old[k] === undefined) delete cfg[k]; else cfg[k] = old[k]; if ($(k) && cfg[k] !== undefined) $(k).value = cfg[k]; } indSaveCfg(); indSig = ''; render(); }
+    else { const old = JSON.parse(st.backup); st.s.inputs = old.inputs; st.s.style = old.style; pineChanged(); }
+  }
+  $('isDlg').close();
+}
+$('isOk').onclick = () => { document.activeElement?.blur(); closeIndSettings(true); };
+$('isCancel').onclick = $('isX').onclick = () => closeIndSettings(false);
+$('isDlg').addEventListener('cancel', e => { e.preventDefault(); closeIndSettings(false); });
+$('isDlg').querySelector('.isTabs').onclick = e => { const t = e.target.dataset.istab; if (t) { document.activeElement?.blur(); isState.tab = t; paintIndSettings(); } };
+$('isDef').onclick = () => {
+  const {built, s} = isState;
+  if (built) { const b = BUILTINS[built]; if (b.n) { cfg[b.n] = built === 'sma' ? 50 : 20; if ($(b.n)) $(b.n).value = cfg[b.n]; } if (b.color) { delete cfg[b.color[0]]; delete cfg[b.width]; } if (built === 'vp') cfg.vpMode = 'visible'; indSaveCfg(); $('isTitle').textContent = b.name(); indSig = ''; render(); }
+  else { delete s.inputs; delete s.style; pineChanged(); openMetaAgain(); }
+  paintIndSettings();
+};
+function openMetaAgain() { try { isState.meta = executePineScript(compilePine(isState.s.code), view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf]}); } catch (e) { isState.error = e.message; } }
 
 /* ---------- data ---------- */
 async function klinesTf(sym, tf, extra = '') {
@@ -1926,7 +2194,7 @@ async function loadChart() {
     message('Could not load ' + cfg.symbol + ': ' + e.message + '. Check the symbol and your connection.');
   }
 }
-function goLatest() { right = view.length - 1 + Math.max(5, PW() / barW * .4); yAuto = true; render(); }
+function goLatest() { right = view.length - 1 + Math.max(5, PW() / barW * (cfg.ctype === 'footprint' ? .3 : .045)); yAuto = true; render(); }
 
 function connect(g) {
   const s = cfg.symbol.toLowerCase();
@@ -2068,7 +2336,7 @@ function paint() {
   if (yAuto && last >= first) {
     let lo = Infinity, hi = -Infinity;
     for (let i = first; i <= last; i++) { lo = Math.min(lo, shown[i].l); hi = Math.max(hi, shown[i].h); }
-    const a = tr(lo), b = tr(hi), m = (b - a || a*.01) * .1;
+    const a = tr(lo), b = tr(hi), m = (b - a || a*.01) * .08;
     yMin = itr(a - m); yMax = itr(b + m);
   }
   if (cfg.ctype === 'footprint') { fpK = FP.tick ? fpStepK() : 1; fpNeed(first); }
@@ -2098,16 +2366,16 @@ function paint() {
   }
   ctx.save(); ctx.beginPath(); ctx.rect(0,0,PW(),mainH()); ctx.clip();
   if (cfg.hm) drawHM();
-  if (cfg.vpOn) drawVP(first, last);
+  if (cfg.vpOn && !cfg.vpHide) drawVP(first, last);
   // volume
-  if (cfg.volOn) {
+  if (cfg.volOn && !cfg.volHide) {
     let mv = 0; for (let i = first; i <= last; i++) mv = Math.max(mv, view[i].v);
     ctx.globalAlpha = .35;
     for (let i = first; i <= last; i++) { const c = view[i], h = c.v/(mv||1)*mainH()*.18; ctx.fillStyle = c.c >= c.o ? '#9aa0aa' : cfg.dn; ctx.fillRect(X(i)-barW*.35, mainH()-h, barW*.7, h); }
     ctx.globalAlpha = 1;
   }
   // candles
-  const bw = Math.max(1, Math.floor(barW*.72));
+  const bw = barW >= 3.5 ? Math.max(3, Math.floor(barW*.72)) : Math.max(1, Math.floor(barW*.72));
   if (cfg.ctype === 'line') {
     ctx.strokeStyle = '#3562f6'; ctx.lineWidth = 2; ctx.beginPath();
     for (let i = first; i <= last; i++) i === first ? ctx.moveTo(X(i),Y(view[i].c)) : ctx.lineTo(X(i),Y(view[i].c));
@@ -2121,9 +2389,9 @@ function paint() {
     if (cfg.bodyOn !== false) { ctx.fillStyle = cfg.ctype === 'hollow' && up && !pineBarColors[i] ? bg : col; ctx.fillRect(x-bw/2, top, bw, h); }
     if (cfg.borderOn !== false && bw > 2) { ctx.strokeStyle = (up ? cfg.upBorder : cfg.dnBorder) || edge; ctx.strokeRect(x-bw/2, top, bw, h); }
   }
-  for (const [on, fn, n, col] of [[cfg.smaOn,sma,cfg.smaN,'#2962ff'],[cfg.emaOn,ema,cfg.emaN,'#9c27b0']]) {
+  for (const [on, fn, n, col, lw] of [[cfg.smaOn && !cfg.smaHide,sma,cfg.smaN,cfg.smaC || '#2962ff',cfg.smaW],[cfg.emaOn && !cfg.emaHide,ema,cfg.emaN,cfg.emaC || '#9c27b0',cfg.emaW]]) {
     if (!on) continue;
-    const v = fn(view, n); ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath(); let pen = false;
+    const v = fn(view, n); ctx.strokeStyle = col; ctx.lineWidth = lw || 1.6; ctx.beginPath(); let pen = false;
     for (let i = first; i <= last; i++) { if (v[i] == null) continue; pen ? ctx.lineTo(X(i),Y(v[i])) : ctx.moveTo(X(i),Y(v[i])); pen = true; }
     ctx.stroke(); ctx.lineWidth = 1;
   }
@@ -2137,6 +2405,7 @@ function paint() {
   ctx.restore();
 
   // Pine Script Sub-panes
+  syncIndList();
   drawPineSubPanes(pineSubs, first, last, fg, bg, subH);
 
   ctx.strokeStyle = cfg.dark ? '#2a2e39' : '#e0e3eb'; line(PW(),0,PW(),PH()); line(0,PH(),W,PH());
@@ -2161,9 +2430,9 @@ function paint() {
   // legend
   const hi = hover ? Math.round(I(hover.x)) : view.length-1, c = view[hi] || lc, ch = (c.c-c.o)/c.o*100;
   const stBase = !cfg.stShow ? '' : [cfg.stSym !== false ? `${cfg.symbol} · ${$('tf').selectedOptions[0].text}` : '', cfg.stOhlc !== false ? `O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}` : '', cfg.stChg !== false ? `(${ch>=0?'+':''}${ch.toFixed(2)}%)` : '', cfg.stVol ? `Vol ${fmtQ(c.v)}` : ''].filter(Boolean).join('  ');
-  const pineTags = pineOverlays.map(p => `  · ${p.title}`).join('');
   $('legend').textContent = (stBase
-    + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + pineTags + (replay ? '  · REPLAY' : '') + fpLegend(hi) + hmLegend()).replace(/^\s*·\s*/, '');
+    + (replay ? '  · REPLAY' : '') + fpLegend(hi) + hmLegend()).replace(/^\s*·\s*/, '');
+  placeIndList();
   updateDrawBar();
 }
 
@@ -2595,7 +2864,7 @@ const EDGE = () => cfg.dark ? '#d1d4dc' : '#000000';
 function theme() {
   document.body.classList.toggle('noPaper', cfg.paperOn === false); $('setDlg').classList.toggle('stDark', !!cfg.dark);
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
-  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input,#pineHead select,#pineCode{background:#1e222d}#pineCode,#pineList,.pineRow .pBadge{border-color:#2a2e39}.pineRow .pBadge{background:#2a2e39}.pineRow:hover{background:#2a2e39}#tplMenu{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#tplMenu hr{border-color:#2a2e39}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#symChips button{background:#2a2e39;color:#d1d4dc}#symChips button.on{background:#d1d4dc;color:#131722}.symRow.act{background:#2a2e39}.symTag{background:#2a2e39;color:#d1d4dc}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
+  s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input,#pineHead select,#pineCode{background:#1e222d}#pineCode,#pineList,.pineRow .pBadge{border-color:#2a2e39}.pineRow .pBadge{background:#2a2e39}.pineRow:hover{background:#2a2e39}#tplMenu{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#tplMenu hr{border-color:#2a2e39}button:hover{background:#2a2e39}#legend{color:#aaa}.iRow{color:#d1d4dc}.iRow:hover,.iRow.sel,#indFold,#indMenu{background:#1e222d;color:#d1d4dc;border-color:#434651}.iRow.off .iName{color:#5d606b}.isTabs,.isFoot{border-color:#2a2e39}#isBody select{border-color:#434651;background:#1e222d}.sep{background:#2a2e39}#symChips button{background:#2a2e39;color:#d1d4dc}#symChips button.on{background:#d1d4dc;color:#131722}.symRow.act{background:#2a2e39}.symTag{background:#2a2e39;color:#d1d4dc}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
 }
 $('indBtn').onclick = () => { renderPineList(); $('indDlg').showModal(); };
 /* ---------- settings dialog ---------- */
