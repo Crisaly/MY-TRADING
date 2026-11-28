@@ -55,6 +55,7 @@ dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 #axTog{position:absolute;right:0;top:50%;transform:translateY(-50%);z-index:6;width:15px;height:42px;padding:0;border-radius:8px 0 0 8px;background:#131722;color:#fff;font-size:13px;line-height:1;display:grid;place-items:center;opacity:.85;box-shadow:0 1px 6px #0004}
 #axTog:hover{opacity:1;background:#2962ff}
 body.noAx #nav{left:50%}
+body.noPaper #paper{display:none}
 body.sideHidden #side{display:none}
 /* symbol search */
 #symDlg{width:min(640px,96vw);padding:0;border-radius:14px;top:8vh;margin:0 auto}
@@ -138,6 +139,25 @@ body.sideHidden #side{display:none}
 .drSec{font-size:11px;opacity:.6;letter-spacing:.06em;margin:18px 0 4px}
 .drPos .drRow>span{min-width:140px}
 #drDlg input[type=range]{width:120px}
+#setDlg{width:min(820px,96vw);padding:0}
+#stBox{padding:20px 22px;display:flex;flex-direction:column;height:min(640px,90vh)}
+.stHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.stHead h3{margin:0;font-size:22px}
+.stBody{display:flex;gap:22px;flex:1;min-height:0}
+#stNav{display:flex;flex-direction:column;gap:2px;width:210px;flex:none;overflow:auto}
+#stNav button{display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:10px;font-size:16px;text-align:left;background:none}
+#stNav button.on{background:#f1f3f6;color:inherit;font-weight:600}.stDark #stNav button.on{background:#2a2e39}
+#stMain{flex:1;overflow:auto;padding-right:6px}
+#stMain section{display:none}#stMain section.on{display:block}
+.stSec{font-size:12px;opacity:.6;letter-spacing:.06em;margin:18px 0 8px}.stSec:first-child{margin-top:4px}
+.stRow{display:flex;align-items:center;justify-content:flex-start;gap:20px;margin:12px 0}
+.stRow>:first-child{min-width:200px}
+.stCols{display:flex;gap:8px}
+label.stChk{display:flex;justify-content:flex-start;align-items:center;gap:12px;margin:12px 0}
+.stRow label.stChk{margin:0}
+#setDlg select,#setDlg input[type=number]{border:1px solid #d1d4dc;border-radius:8px;padding:8px 10px;background:transparent;color:inherit;width:210px}
+#setDlg input[type=color]{width:42px;height:36px;padding:2px;border:1px solid #d1d4dc;border-radius:8px;background:none;cursor:pointer}
+#setDlg input[type=checkbox]{width:18px;height:18px}
+#stResetCv,#stCancel{border:1px solid #d1d4dc;border-radius:8px;padding:8px 14px}
 #kbDlg table{border-collapse:collapse;width:100%}
 #kbDlg td{padding:5px 4px;border-bottom:1px solid #eee}
 #kbDlg td:last-child{text-align:right;white-space:nowrap}
@@ -340,20 +360,81 @@ body.domOn #dom{display:flex}
   <small>Alerts only work while this page is open.</small>
   <div class="row"><button value="cancel">Close</button><button class="pri" value="add">Add alert</button></div></form></dialog>
 
-<dialog id="setDlg"><form method="dialog"><h3>Settings</h3>
-  <label>Up candle <input type="color" id="cUp"></label>
-  <label>Down candle <input type="color" id="cDn"></label>
-  <label>Grid lines <input type="checkbox" id="grid"></label>
-  <label>Log price scale <input type="checkbox" id="logS"></label>
-  <label>Dark mode <input type="checkbox" id="dark"></label>
-  <label>Thermal map: profile depth <select id="hmDepth"><option>Shallow Profile</option><option>Balanced Profile</option><option>Deep Profile</option></select></label>
-  <label>Thermal map: sensitivity <select id="hmSens"><option>High Contrast</option><option>Balanced</option><option>Smooth</option></select></label>
-  <label>Thermal map: upper liquidity color <input type="color" id="hmUp"></label>
-  <label>Thermal map: lower liquidity color <input type="color" id="hmDn"></label>
-  <label>Thermal map: hide active candle color <input type="checkbox" id="hmHide"></label>
-  <label>Footprint imbalance (×) <input type="number" id="fpImb" value="3" min="2"></label>
-  <label>Footprint Δ / volume labels <input type="checkbox" id="fpStat"></label>
-  <div class="row"><button class="pri">Done</button></div></form></dialog>
+<dialog id="setDlg"><div id="stBox">
+  <div class="stHead"><h3>Settings</h3><button type="button" id="stX" title="Close">&#10005;</button></div>
+  <div class="stBody">
+    <nav id="stNav"><button type="button" data-s="symbol"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v4M8 16v4M16 8v4M16 14v6"/><rect x="6" y="8" width="4" height="8" rx="1"/><rect x="14" y="12" width="4" height="2" rx="1"/></svg><span>Symbol</span></button><button type="button" data-s="status"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 11h10M4 16h16M4 21h8"/></svg><span>Status line</span></button><button type="button" data-s="scales"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v16h16"/><path d="M9 15l4-5 3 3 4-6"/></svg><span>Scales and lines</span></button><button type="button" data-s="canvas"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L17 4l3 3L8 19z"/><path d="M14 7l3 3"/></svg><span>Canvas</span></button><button type="button" data-s="trading"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span>Trading</span></button><button type="button" data-s="alerts"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M5 4L3 6M19 4l2 2"/></svg><span>Alerts</span></button><button type="button" data-s="events"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Events</span></button><button type="button" data-s="inds"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 5-8 4 4"/></svg><span>Indicators</span></button></nav>
+    <div id="stMain">
+      <section data-sp="symbol">
+        <div class="stSec">CANDLES</div>
+        <label class="stChk"><input type="checkbox" id="pcOn"> Color bars based on previous close</label>
+        <div class="stRow"><label class="stChk"><input type="checkbox" id="bdyOn"> Body</label><span class="stCols"><input type="color" id="cUp" title="Up"><input type="color" id="cDn" title="Down"></span></div>
+        <div class="stRow"><label class="stChk"><input type="checkbox" id="bdOn"> Borders</label><span class="stCols"><input type="color" id="bdUp" title="Up"><input type="color" id="bdDn" title="Down"></span></div>
+        <div class="stRow"><label class="stChk"><input type="checkbox" id="wkOn"> Wick</label><span class="stCols"><input type="color" id="wkUp" title="Up"><input type="color" id="wkDn" title="Down"></span></div>
+        <div class="stSec">DATA MODIFICATION</div>
+        <div class="stRow"><span>Precision</span><select id="prec"><option value="default">Default</option><option value="0">1/1</option><option value="1">1/10</option><option value="2">1/100</option><option value="3">1/1000</option><option value="4">1/10000</option><option value="5">1/100000</option><option value="6">1/1000000</option><option value="7">1/10000000</option><option value="8">1/100000000</option></select></div>
+        <div class="stRow"><span>Timezone</span><select id="tz"></select></div>
+      </section>
+      <section data-sp="status">
+        <div class="stSec">STATUS LINE</div>
+        <label class="stChk"><input type="checkbox" id="stSym"> Symbol and timeframe</label>
+        <label class="stChk"><input type="checkbox" id="stOhlc"> OHLC values</label>
+        <label class="stChk"><input type="checkbox" id="stChg"> Bar change values</label>
+        <label class="stChk"><input type="checkbox" id="stVol"> Volume</label>
+      </section>
+      <section data-sp="scales">
+        <div class="stSec">PRICE SCALE</div>
+        <label class="stChk"><input type="checkbox" id="axShow"> Show price scale (right side)</label>
+        <label class="stChk"><input type="checkbox" id="logS"> Logarithmic scale</label>
+        <div class="stSec">LABELS AND LINES</div>
+        <label class="stChk"><input type="checkbox" id="lastLine"> Last price line</label>
+        <label class="stChk"><input type="checkbox" id="lastLbl"> Last price label</label>
+        <label class="stChk"><input type="checkbox" id="cdown"> Countdown to bar close</label>
+      </section>
+      <section data-sp="canvas">
+        <div class="stSec">CHART BASIC STYLES</div>
+        <label class="stChk"><input type="checkbox" id="dark"> Dark mode</label>
+        <div class="stRow"><span>Background</span><span class="stCols"><input type="color" id="bgC"></span></div>
+        <label class="stChk"><input type="checkbox" id="grid"> Grid lines</label>
+        <div class="stRow"><span>Grid color</span><span class="stCols"><input type="color" id="gridC"></span></div>
+        <div class="stSec">CROSSHAIR</div>
+        <label class="stChk"><input type="checkbox" id="chOn"> Show crosshair</label>
+        <div class="stRow"><span>Crosshair color</span><span class="stCols"><input type="color" id="chC"></span></div>
+        <div class="stRow"><span></span><button type="button" id="stResetCv">Reset canvas colors</button></div>
+      </section>
+      <section data-sp="trading">
+        <div class="stSec">POSITION TOOLS (NEW LONG / SHORT)</div>
+        <div class="stRow"><span>Account size</span><input type="number" id="posAcct" min="0" step="any"></div>
+        <div class="stRow"><span>Risk (%)</span><input type="number" id="posRisk" min="0" step="any"></div>
+        <div class="stRow"><span>Lot size</span><input type="number" id="posLot" min="0" step="any"></div>
+        <div class="stSec">PANELS</div>
+        <label class="stChk"><input type="checkbox" id="paperOn"> Show paper trading panel</label>
+      </section>
+      <section data-sp="alerts">
+        <div class="stSec">ALERTS</div>
+        <label class="stChk"><input type="checkbox" id="alLines"> Show alert lines on the chart</label>
+        <label class="stChk"><input type="checkbox" id="alLbl"> Show alert price labels</label>
+      </section>
+      <section data-sp="events">
+        <div class="stSec">SESSIONS</div>
+        <label class="stChk"><input type="checkbox" id="daySep"> Day separators (intraday timeframes)</label>
+        <div class="stRow"><span>Separator color</span><span class="stCols"><input type="color" id="daySepC"></span></div>
+      </section>
+      <section data-sp="inds">
+        <div class="stSec">THERMAL MAP</div>
+        <div class="stRow"><span>Profile depth</span><select id="hmDepth"><option>Shallow Profile</option><option>Balanced Profile</option><option>Deep Profile</option></select></div>
+        <div class="stRow"><span>Sensitivity</span><select id="hmSens"><option>High Contrast</option><option>Balanced</option><option>Smooth</option></select></div>
+        <div class="stRow"><span>Upper liquidity color</span><span class="stCols"><input type="color" id="hmUp"></span></div>
+        <div class="stRow"><span>Lower liquidity color</span><span class="stCols"><input type="color" id="hmDn"></span></div>
+        <label class="stChk"><input type="checkbox" id="hmHide"> Hide active candle color</label>
+        <div class="stSec">FOOTPRINT</div>
+        <div class="stRow"><span>Imbalance (×)</span><input type="number" id="fpImb" min="2"></div>
+        <label class="stChk"><input type="checkbox" id="fpStat"> Δ / volume labels</label>
+      </section>
+    </div>
+  </div>
+  <div class="drFoot"><button type="button" id="stCancel">Cancel</button><button type="button" class="pri" id="stOk">Ok</button></div>
+</div></dialog>
 
 <script>
 'use strict';
@@ -365,7 +446,7 @@ const PANE = (() => { const v = new URLSearchParams(location.search).get('pane')
 const CFGKEY = PANE ? 'cfg_p' + PANE : 'cfg';
 if (PANE != null) { document.body.classList.add('pane'); if (new URLSearchParams(location.search).get('tight')) document.body.classList.add('tight'); }
 const cfg = Object.assign({symbol:'BTCUSDT', tf:'1d', ctype:'candle', up:'#d6d6d6', dn:'#f29d38', grid:false, log:false, dark:false,
-  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false, hm:false, hmDepth:'Balanced Profile', hmSens:'Balanced', hmUp:'#bd2b2b', hmDn:'#29b453', hmHide:true, vpOn:false, vpMode:'visible'}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
+  smaOn:false, smaN:50, emaOn:false, emaN:20, volOn:false, fpImb:3, fpStat:true, dom:false, hm:false, hmDepth:'Balanced Profile', hmSens:'Balanced', hmUp:'#bd2b2b', hmDn:'#29b453', hmHide:true, vpOn:false, vpMode:'visible', prec:'default', tz:'local'}, load('cfg', {}), PANE ? load(CFGKEY, {}) : {});
 /* timeframes: Binance-native intervals are fetched directly; any custom one (7s, 7m, 90m, 5h, 3d, 2w …) is built by aggregating a smaller native interval */
 const NATIVE = {'1s':1e3,'1m':6e4,'3m':18e4,'5m':3e5,'15m':9e5,'30m':18e5,'1h':36e5,'2h':72e5,'4h':144e5,'6h':216e5,'8h':288e5,'12h':432e5,'1d':864e5,'3d':2592e5,'1w':6048e5};
 const UNIT = {s:1e3, m:6e4, h:36e5, d:864e5, w:6048e5};
@@ -539,12 +620,19 @@ function pointAt(x, y) {
 }
 
 /* ---------- formatting ---------- */
-function dec(p) { return p >= 100 ? 2 : p >= 1 ? 4 : p >= .01 ? 5 : 8; }
+function dec(p) { if (cfg.prec != null && cfg.prec !== 'default') return Math.max(0, Math.min(8, +cfg.prec || 0)); return p >= 100 ? 2 : p >= 1 ? 4 : p >= .01 ? 5 : 8; }
 const fmt = (p, d = dec(Math.abs(p))) => p.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const pad = n => String(n).padStart(2, '0');
 const daily = () => TFMS[cfg.tf] >= 864e5;
-function dparts(t) {   // daily candles are dated in UTC (exchange day); intraday uses your local time
+const TZF = {};
+function tzParts(t, tz) {
+  const f = TZF[tz] || (TZF[tz] = new Intl.DateTimeFormat('en-GB', {timeZone: tz, hourCycle:'h23', year:'numeric', month:'numeric', day:'numeric', hour:'numeric', minute:'numeric'}));
+  const o = {}; for (const x of f.formatToParts(t)) o[x.type] = +x.value;
+  return {y:o.year, m:o.month - 1, d:o.day, h:o.hour, mi:o.minute};
+}
+function dparts(t) {   // daily candles are dated in UTC (exchange day); intraday uses the timezone chosen in Settings (default: your local time)
+  if (!daily() && cfg.tz && cfg.tz !== 'local') { try { return tzParts(t, cfg.tz); } catch {} }
   const d = new Date(t), u = daily() ? 'getUTC' : 'get';
   return {y:d[u+'FullYear'](), m:d[u+'Month'](), d:d[u+'Date'](), h:d[u+'Hours'](), mi:d[u+'Minutes']()};
 }
@@ -577,7 +665,7 @@ function paint() {
   queued = false;
   fpSync(); domSync(); domPaint();
   if (W < AXW + 20 || H < AXH + 20) { DB.hidden = true; return; }
-  const fg = cfg.dark ? '#d1d4dc' : '#131722', bg = cfg.dark ? '#131722' : '#fff', edge = cfg.dark ? '#d1d4dc' : '#000';
+  const fg = cfg.dark ? '#d1d4dc' : '#131722', bg = cfg.bgC || (cfg.dark ? '#131722' : '#fff'), edge = cfg.dark ? '#d1d4dc' : '#000', gridCol = cfg.gridC || (cfg.dark ? '#242a38' : '#eef0f4');
   ctx.fillStyle = bg; ctx.fillRect(0,0,W,H);
   ctx.font = '12px -apple-system,sans-serif'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
   if (!view.length) { $('legend').textContent = ''; DB.hidden = true; return; }
@@ -594,7 +682,7 @@ function paint() {
   const step = niceStep((yMax - yMin) / Math.max(2, PH()/60));
   for (let p = Math.ceil(yMin/step)*step; p <= yMax; p += step) {
     const y = Y(p);
-    if (cfg.grid) { ctx.strokeStyle = cfg.dark ? '#242a38' : '#eef0f4'; line(0,y,PW(),y); }
+    if (cfg.grid) { ctx.strokeStyle = gridCol; line(0,y,PW(),y); }
     ctx.fillStyle = fg; ctx.textAlign = 'left'; ctx.fillText(fmt(p), PW()+8, y);
   }
   // time axis
@@ -605,8 +693,13 @@ function paint() {
     else label = prev && prev.d !== p.d ? `${p.d} ${MON[p.m]}` : `${pad(p.h)}:${pad(p.mi)}`;
     if (cfg.tf === '1M') label = `${MON[p.m]} ${String(p.y).slice(2)}`;
     prev = p;
-    if (cfg.grid) { ctx.strokeStyle = cfg.dark ? '#242a38' : '#eef0f4'; line(x,0,x,PH()); }
+    if (cfg.grid) { ctx.strokeStyle = gridCol; line(x,0,x,PH()); }
     if (x < PW()-20) { ctx.fillStyle = fg; ctx.textAlign = 'center'; ctx.fillText(label, x, PH()+14); }
+  }
+  if (cfg.daySep && !daily()) {   // dotted vertical line where a new day starts
+    ctx.strokeStyle = cfg.daySepC || (cfg.dark ? '#555b69' : '#b2b5be'); ctx.setLineDash([2,4]); let pd = null;
+    for (let i = Math.max(0, first - 1); i <= last; i++) { const dd = dparts(view[i].t).d; if (pd != null && dd !== pd) { const x = Math.round(X(i - .5)) + .5; line(x, 0, x, PH()); } pd = dd; }
+    ctx.setLineDash([]);
   }
   ctx.save(); ctx.beginPath(); ctx.rect(0,0,PW(),PH()); ctx.clip();
   if (cfg.hm) drawHM();
@@ -625,13 +718,13 @@ function paint() {
     for (let i = first; i <= last; i++) i === first ? ctx.moveTo(X(i),Y(view[i].c)) : ctx.lineTo(X(i),Y(view[i].c));
     ctx.stroke(); ctx.lineWidth = 1;
   } else for (let i = first; i <= last; i++) {
-    const c = shown[i], x = Math.round(X(i))+.5, up = c.c >= c.o, col = up ? cfg.up : cfg.dn;
+    const c = shown[i], x = Math.round(X(i))+.5, up = cfg.prevClose && i > 0 ? c.c >= shown[i-1].c : c.c >= c.o, col = up ? cfg.up : cfg.dn;
     if (cfg.ctype === 'footprint' && drawFP(i, c)) continue;
     if (cfg.ctype === 'bars') { ctx.strokeStyle = up ? '#8a8f99' : cfg.dn; ctx.lineWidth = 1.5; line(x,Y(c.h),x,Y(c.l)); line(x-bw/2,Y(c.o),x,Y(c.o)); line(x,Y(c.c),x+bw/2,Y(c.c)); ctx.lineWidth = 1; continue; }
-    ctx.strokeStyle = edge; line(x,Y(c.h),x,Y(c.l));
+    if (cfg.wickOn !== false) { ctx.strokeStyle = (up ? cfg.upWick : cfg.dnWick) || edge; line(x,Y(c.h),x,Y(c.l)); }
     const top = Y(Math.max(c.o,c.c)), h = Math.max(1, Y(Math.min(c.o,c.c)) - top);
-    ctx.fillStyle = cfg.ctype === 'hollow' && up ? bg : col;
-    ctx.fillRect(x-bw/2, top, bw, h); if (bw > 2) ctx.strokeRect(x-bw/2, top, bw, h);
+    if (cfg.bodyOn !== false) { ctx.fillStyle = cfg.ctype === 'hollow' && up ? bg : col; ctx.fillRect(x-bw/2, top, bw, h); }
+    if (cfg.borderOn !== false && bw > 2) { ctx.strokeStyle = (up ? cfg.upBorder : cfg.dnBorder) || edge; ctx.strokeRect(x-bw/2, top, bw, h); }
   }
   for (const [on, fn, n, col] of [[cfg.smaOn,sma,cfg.smaN,'#2962ff'],[cfg.emaOn,ema,cfg.emaN,'#9c27b0']]) {
     if (!on) continue;
@@ -645,16 +738,16 @@ function paint() {
   ctx.restore();
 
   ctx.strokeStyle = cfg.dark ? '#2a2e39' : '#e0e3eb'; line(PW(),0,PW(),PH()); line(0,PH(),W,PH());
-  for (const a of alerts.filter(a => a.symbol === cfg.symbol)) {
-    ctx.setLineDash([6,4]); ctx.strokeStyle = '#7e57c2'; line(0,Y(a.price),PW(),Y(a.price)); ctx.setLineDash([]); tag(Y(a.price), fmt(a.price), '#7e57c2');
+  if (cfg.alLines !== false) for (const a of alerts.filter(a => a.symbol === cfg.symbol)) {
+    ctx.setLineDash([6,4]); ctx.strokeStyle = '#7e57c2'; line(0,Y(a.price),PW(),Y(a.price)); ctx.setLineDash([]); if (cfg.alLbl !== false) tag(Y(a.price), fmt(a.price), '#7e57c2');
   }
   for (const [y, tx, c] of POSTAGS) tag(y, tx, c);
   const lc = view[view.length-1], ly = Y(lc.c);
-  ctx.setLineDash([2,3]); ctx.strokeStyle = fg; line(0,ly,PW(),ly); ctx.setLineDash([]);
-  tag(ly, fmt(lc.c), cfg.dark ? '#555b69' : '#000', countdown());
+  if (cfg.lastLine !== false) { ctx.setLineDash([2,3]); ctx.strokeStyle = fg; line(0,ly,PW(),ly); ctx.setLineDash([]); }
+  if (cfg.lastLbl !== false) tag(ly, fmt(lc.c), cfg.dark ? '#555b69' : '#000', cfg.cdown !== false ? countdown() : undefined);
   if (hover && hover.x < PW() && hover.y < PH()) {
-    ctx.setLineDash([5,5]); ctx.strokeStyle = '#8b909c'; const hx = X(Math.round(I(hover.x)));
-    line(hx,0,hx,PH()); line(0,hover.y,PW(),hover.y); ctx.setLineDash([]);
+    ctx.setLineDash([5,5]); ctx.strokeStyle = cfg.chC || '#8b909c'; const hx = X(Math.round(I(hover.x)));
+    if (cfg.chOn !== false) line(hx,0,hx,PH()); if (cfg.chOn !== false) line(0,hover.y,PW(),hover.y); ctx.setLineDash([]);
     if (altDown) { ctx.fillStyle = 'rgba(41,98,255,.25)'; ctx.strokeStyle = '#2962ff'; ctx.beginPath(); ctx.arc(hover.x, hover.y, 14, 0, 7); ctx.fill(); ctx.stroke(); }
     tag(hover.y, fmt(P(hover.y)), '#434651');
     const s = fullDate(i2t(Math.round(I(hover.x)))), w = ctx.measureText(s).width + 16;
@@ -662,7 +755,7 @@ function paint() {
   }
   // legend
   const hi = hover ? Math.round(I(hover.x)) : view.length-1, c = view[hi] || lc, ch = (c.c-c.o)/c.o*100;
-  $('legend').textContent = `${cfg.symbol} · ${$('tf').selectedOptions[0].text}  O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}  (${ch>=0?'+':''}${ch.toFixed(2)}%)`
+  $('legend').textContent = [cfg.stSym !== false ? `${cfg.symbol} · ${$('tf').selectedOptions[0].text}` : '', cfg.stOhlc !== false ? `O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}` : '', cfg.stChg !== false ? `(${ch>=0?'+':''}${ch.toFixed(2)}%)` : '', cfg.stVol ? `Vol ${fmtQ(c.v)}` : ''].filter(Boolean).join('  ')
     + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '') + fpLegend(hi) + hmLegend();
   updateDrawBar();
 }
@@ -673,7 +766,7 @@ function position(d) {   // points: entry, target, stop (+ width from target poi
   return {e, t, s, x1, x2};
 }
 const PD = {lineC:'#787b86', lineD:'solid', lineW:1, stopC:'#f23645', stopA:.2, tgtC:'#089981', tgtA:.2, textC:'#ffffff', textS:12, lbl:false, stats:'rr', compact:true, always:false, acct:1000, lot:0.001, risk:25, riskU:'%'};
-const pget = d => Object.assign({}, PD, d);
+const pget = d => { const q = {}; if (cfg.posAcct != null) q.acct = cfg.posAcct; if (cfg.posRisk != null) q.risk = cfg.posRisk; if (cfg.posLot != null) q.lot = cfg.posLot; return Object.assign({}, PD, q, d); };
 const POSTAGS = [];   // price-axis labels of position tools, drawn after the axis
 function posStats(d) {   // quantity from the risk settings, risk/reward, and whether price already hit the target or the stop
   const o = pget(d), {e, t, s} = position(d), dir = d.type === 'long' ? 1 : -1;
@@ -1072,18 +1165,67 @@ $('tf').onchange = e => { if (e.target.value === '__c') { e.target.value = cfg.t
 $('ctype').onchange = e => { cfg.ctype = e.target.value; saveCfg(); announce('ctype'); };
 $('undo').onclick = () => step(undoS, redoS);
 $('redo').onclick = () => step(redoS, undoS);
-function bind(id, key) {
-  const el = $(id), isC = el.type === 'checkbox';
-  el[isC ? 'checked' : 'value'] = cfg[key];
-  el.oninput = () => { cfg[key] = isC ? el.checked : el.type === 'number' ? Math.max(2, Math.round(+el.value) || 2) : el.value; if (key === 'log') yAuto = true; theme(); saveCfg(); };
+const BINDS = [];
+function bind(id, key, def, kind) {   // control <-> cfg[key]; def may be a function (e.g. colours that follow the theme)
+  const el = $(id), isC = el.type === 'checkbox', isNum = el.type === 'number';
+  const refresh = () => { const v = cfg[key] ?? (typeof def === 'function' ? def() : def); if (isC) el.checked = !!v; else el.value = v ?? ''; };
+  refresh(); BINDS.push(refresh);
+  el.oninput = () => {
+    let v = isC ? el.checked : el.value;
+    if (isNum) { if (kind === 'free') { v = parseFloat(v); if (!isFinite(v) || v < 0) return; } else v = Math.max(2, Math.round(+v) || 2); }
+    cfg[key] = v; if (key === 'log') yAuto = true; theme(); saveCfg();
+  };
 }
-[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['vpMode','vpMode'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['hmDepth','hmDepth'],['hmSens','hmSens'],['hmUp','hmUp'],['hmDn','hmDn'],['hmHide','hmHide'],['fpStat','fpStat']].forEach(a => bind(...a));
+const EDGE = () => cfg.dark ? '#d1d4dc' : '#000000';
+[['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['vpMode','vpMode'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['hmDepth','hmDepth'],['hmSens','hmSens'],['hmUp','hmUp'],['hmDn','hmDn'],['hmHide','hmHide'],['fpStat','fpStat'],
+ ['pcOn','prevClose',false],['bdyOn','bodyOn',true],['bdOn','borderOn',true],['wkOn','wickOn',true],['bdUp','upBorder',EDGE],['bdDn','dnBorder',EDGE],['wkUp','upWick',EDGE],['wkDn','dnWick',EDGE],
+ ['prec','prec','default'],['tz','tz','local'],
+ ['stSym','stSym',true],['stOhlc','stOhlc',true],['stChg','stChg',true],['stVol','stVol',false],
+ ['lastLine','lastLine',true],['lastLbl','lastLbl',true],['cdown','cdown',true],
+ ['bgC','bgC',() => cfg.dark ? '#131722' : '#ffffff'],['gridC','gridC',() => cfg.dark ? '#242a38' : '#eef0f4'],['chOn','chOn',true],['chC','chC','#8b909c'],
+ ['posAcct','posAcct',1000,'free'],['posRisk','posRisk',25,'free'],['posLot','posLot',0.001,'free'],['paperOn','paperOn',true],
+ ['alLines','alLines',true],['alLbl','alLbl',true],['daySep','daySep',false],['daySepC','daySepC',() => cfg.dark ? '#555b69' : '#b2b5be']].forEach(a => bind(...a));
 function theme() {
+  document.body.classList.toggle('noPaper', cfg.paperOn === false); $('setDlg').classList.toggle('stDark', !!cfg.dark);
   let s = $('darkCss'); if (!s) { s = document.createElement('style'); s.id = 'darkCss'; document.head.append(s); }
   s.textContent = cfg.dark ? 'body{background:#2a2e39;color:#d1d4dc}#top,#side,#bottom,#paper,dialog{background:#131722;color:#d1d4dc;border-color:#2a2e39}#top select,#symbol,#paper input,dialog input{background:#1e222d}#tplMenu{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#tplMenu hr{border-color:#2a2e39}button:hover{background:#2a2e39}#legend{color:#aaa}.sep{background:#2a2e39}#symChips button{background:#2a2e39;color:#d1d4dc}#symChips button.on{background:#d1d4dc;color:#131722}.symRow.act{background:#2a2e39}.symTag{background:#2a2e39;color:#d1d4dc}#nav button{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#nav button:hover{background:#2a2e39}#drawBar,#favBar,#favPick{background:#1e222d;color:#d1d4dc;border-color:#2a2e39}#favBar button:hover,#favPick div:hover{background:#2a2e39}#drDlg select,#drDlg textarea,#drDlg input,#drDlg .tg{border-color:#434651!important}.drTabs{border-color:#2a2e39}#drDlg .tg.on{background:#d1d4dc;color:#131722}kbd{background:#2a2e39}#kbDlg td{border-color:#2a2e39}#drawBar select{background:#2a2e39}#drawBar .sp{background:#2a2e39}' : '';
 }
 $('indBtn').onclick = () => $('indDlg').showModal();
-$('setBtn').onclick = () => $('setDlg').showModal();
+/* ---------- settings dialog ---------- */
+const TZLIST = [['UTC','UTC'],['America/New_York','New York'],['America/Chicago','Chicago'],['America/Denver','Denver'],['America/Los_Angeles','Los Angeles'],['America/Sao_Paulo','São Paulo'],['Europe/London','London'],['Europe/Paris','Paris'],['Europe/Berlin','Berlin'],['Europe/Athens','Athens'],['Europe/Istanbul','Istanbul'],['Europe/Moscow','Moscow'],['Asia/Dubai','Dubai'],['Asia/Karachi','Karachi'],['Asia/Kolkata','Kolkata'],['Asia/Bangkok','Bangkok'],['Asia/Shanghai','Shanghai'],['Asia/Hong_Kong','Hong Kong'],['Asia/Singapore','Singapore'],['Asia/Tokyo','Tokyo'],['Asia/Seoul','Seoul'],['Australia/Sydney','Sydney'],['Pacific/Auckland','Auckland']];
+function tzOff(tz) {
+  try {
+    const n = new Intl.DateTimeFormat('en-US', {timeZone: tz, timeZoneName: 'longOffset'}).formatToParts(new Date()).find(p => p.type === 'timeZoneName').value;   // "GMT+02:00"
+    const m = /GMT([+-])(\d{2}):?(\d{2})?/.exec(n); if (!m) return 'UTC';
+    return 'UTC' + m[1] + (+m[2]) + (m[3] && +m[3] ? ':' + m[3] : '');
+  } catch { const off = -new Date().getTimezoneOffset() / 60; return 'UTC' + (off >= 0 ? '+' : '') + off; }
+}
+function fillTz() {
+  const loc = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } })(), city = loc.split('/').pop().replace(/_/g, ' ') || 'Local';
+  $('tz').innerHTML = `<option value="local">(${tzOff()}) ${city}</option>` + TZLIST.map(([id, n]) => `<option value="${id}">(${tzOff(id)}) ${n}</option>`).join('');
+  $('tz').value = cfg.tz || 'local';
+}
+function stShow(k) {
+  document.querySelectorAll('#stNav button').forEach(b => b.classList.toggle('on', b.dataset.s === k));
+  document.querySelectorAll('#stMain section').forEach(p => p.classList.toggle('on', p.dataset.sp === k));
+}
+document.querySelectorAll('#stNav button').forEach(b => b.onclick = () => stShow(b.dataset.s));
+let stBefore = null;
+function setAxis(on) { AXW = on ? 78 : 0; save('axHide', !on); paintAxTog(); render(); }
+$('axShow').onchange = () => setAxis($('axShow').checked);
+$('setBtn').onclick = () => {
+  stBefore = {cfg: JSON.stringify(cfg), ax: AXW};
+  fillTz(); BINDS.forEach(f => f()); $('axShow').checked = AXW > 0; stShow('symbol'); $('setDlg').showModal();
+};
+function stRevert() {
+  if (!stBefore) return;
+  const old = JSON.parse(stBefore.cfg); Object.keys(cfg).forEach(k => { if (!(k in old)) delete cfg[k]; }); Object.assign(cfg, old);
+  setAxis(stBefore.ax > 0); yAuto = true; theme(); saveCfg(); stBefore = null;
+}
+$('stX').onclick = $('stCancel').onclick = () => { stRevert(); $('setDlg').close(); };
+$('stOk').onclick = () => { stBefore = null; $('setDlg').close(); };
+$('setDlg').addEventListener('cancel', stRevert);
+$('stResetCv').onclick = () => { delete cfg.bgC; delete cfg.gridC; delete cfg.chC; delete cfg.daySepC; BINDS.forEach(f => f()); saveCfg(); };
 $('fsBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
 $('shotBtn').onclick = () => { const a = document.createElement('a'); a.download = `${cfg.symbol}_${cfg.tf}.png`; a.href = cv.toDataURL('image/png'); a.click(); };
 
@@ -2165,8 +2307,10 @@ new ResizeObserver(() => {
   ctx.setTransform(k,0,0,k,0,0); render();
 }).observe($('wrap'));
 setInterval(() => {
-  const d = new Date(), off = -d.getTimezoneOffset()/60;
-  $('clock').textContent = `${d.toLocaleTimeString('en-GB')} UTC${off >= 0 ? '+' : ''}${off}`;
+  const d = new Date();
+  let tz = cfg.tz && cfg.tz !== 'local' ? cfg.tz : undefined, txt;
+  try { txt = d.toLocaleTimeString('en-GB', {timeZone: tz}) + ' ' + tzOff(tz); } catch { txt = d.toLocaleTimeString('en-GB'); }
+  $('clock').textContent = txt;
   render();
 }, 1000);
 ensureTfOption(cfg.tf); $('symbol').value = cfg.symbol; $('tf').value = cfg.tf; $('ctype').value = cfg.ctype;
