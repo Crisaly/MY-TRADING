@@ -377,6 +377,7 @@ body.domOn #dom{display:flex}
       </section>
       <section data-sp="status">
         <div class="stSec">STATUS LINE</div>
+        <label class="stChk"><input type="checkbox" id="stShow"> Show status line</label>
         <label class="stChk"><input type="checkbox" id="stSym"> Symbol and timeframe</label>
         <label class="stChk"><input type="checkbox" id="stOhlc"> OHLC values</label>
         <label class="stChk"><input type="checkbox" id="stChg"> Bar change values</label>
@@ -755,8 +756,9 @@ function paint() {
   }
   // legend
   const hi = hover ? Math.round(I(hover.x)) : view.length-1, c = view[hi] || lc, ch = (c.c-c.o)/c.o*100;
-  $('legend').textContent = [cfg.stSym !== false ? `${cfg.symbol} · ${$('tf').selectedOptions[0].text}` : '', cfg.stOhlc !== false ? `O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}` : '', cfg.stChg !== false ? `(${ch>=0?'+':''}${ch.toFixed(2)}%)` : '', cfg.stVol ? `Vol ${fmtQ(c.v)}` : ''].filter(Boolean).join('  ')
-    + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '') + fpLegend(hi) + hmLegend();
+  const stBase = !cfg.stShow ? '' : [cfg.stSym !== false ? `${cfg.symbol} · ${$('tf').selectedOptions[0].text}` : '', cfg.stOhlc !== false ? `O ${fmt(c.o)}  H ${fmt(c.h)}  L ${fmt(c.l)}  C ${fmt(c.c)}` : '', cfg.stChg !== false ? `(${ch>=0?'+':''}${ch.toFixed(2)}%)` : '', cfg.stVol ? `Vol ${fmtQ(c.v)}` : ''].filter(Boolean).join('  ');
+  $('legend').textContent = (stBase
+    + (cfg.smaOn ? `  · SMA ${cfg.smaN}` : '') + (cfg.emaOn ? `  · EMA ${cfg.emaN}` : '') + (replay ? '  · REPLAY' : '') + fpLegend(hi) + hmLegend()).replace(/^\s*·\s*/, '');
   updateDrawBar();
 }
 
@@ -1180,7 +1182,7 @@ const EDGE = () => cfg.dark ? '#d1d4dc' : '#000000';
 [['smaOn','smaOn'],['smaN','smaN'],['emaOn','emaOn'],['emaN','emaN'],['volOn','volOn'],['vpOn','vpOn'],['vpMode','vpMode'],['cUp','up'],['cDn','dn'],['grid','grid'],['logS','log'],['dark','dark'],['fpImb','fpImb'],['hmDepth','hmDepth'],['hmSens','hmSens'],['hmUp','hmUp'],['hmDn','hmDn'],['hmHide','hmHide'],['fpStat','fpStat'],
  ['pcOn','prevClose',false],['bdyOn','bodyOn',true],['bdOn','borderOn',true],['wkOn','wickOn',true],['bdUp','upBorder',EDGE],['bdDn','dnBorder',EDGE],['wkUp','upWick',EDGE],['wkDn','dnWick',EDGE],
  ['prec','prec','default'],['tz','tz','local'],
- ['stSym','stSym',true],['stOhlc','stOhlc',true],['stChg','stChg',true],['stVol','stVol',false],
+ ['stShow','stShow',false],['stSym','stSym',true],['stOhlc','stOhlc',true],['stChg','stChg',true],['stVol','stVol',false],
  ['lastLine','lastLine',true],['lastLbl','lastLbl',true],['cdown','cdown',true],
  ['bgC','bgC',() => cfg.dark ? '#131722' : '#ffffff'],['gridC','gridC',() => cfg.dark ? '#242a38' : '#eef0f4'],['chOn','chOn',true],['chC','chC','#8b909c'],
  ['posAcct','posAcct',1000,'free'],['posRisk','posRisk',25,'free'],['posLot','posLot',0.001,'free'],['paperOn','paperOn',true],
