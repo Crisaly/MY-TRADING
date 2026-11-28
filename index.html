@@ -906,7 +906,72 @@ function compilePine(code) {
 }
 
 /* ---------- runtime ---------- */
+/* ---------- lower-timeframe candle cache for request.security ---------- */
+const LTF = new Map();   // 'SYMBOL|ms' -> array of candles (+ .at, .reqFrom, .err, .loading)
+function ltfTf(ms) {
+  const n = Object.keys(NATIVE).find(k => NATIVE[k] === ms);
+  if (n) return n;
+  if (ms % 6e4 === 0 && ms >= 6e4) return ms / 6e4 + 'm';
+  if (ms % 1e3 === 0) return ms / 1e3 + 's';
+  return null;
+}
+function ltfCtx() {
+  const m = new Map(), pre = cfg.symbol + '|';
+  for (const [k, v] of LTF) if (k.startsWith(pre)) m.set(+k.slice(pre.length), v);
+  return m;
+}
+async function loadLtf(ms) {
+  const key = cfg.symbol + '|' + ms, tf = ltfTf(ms), old = LTF.get(key);
+  if (old && old.loading) return;
+  const keep = old && !old.err ? old : null;
+  if (keep) keep.loading = true;
+  const holder = keep || Object.assign([], {loading: true});
+  LTF.set(key, holder);
+  try {
+    if (!tf || !(isNative(tf) || parseTf(tf))) throw new Error('unsupported timeframe');
+    const vw = view.length ? view : data;
+    if (!vw.length) throw new Error('no chart data');
+    const tfm = TFMS[cfg.tf], reqFrom = vw[0].t, fromT = reqFrom - ms * 700, toT = vw[vw.length - 1].t + tfm - 1;
+    let end = Math.min(toT, Date.now()); const all = new Map();
+    for (let pg = 0; pg < 15; pg++) {
+      const ch = await klinesTf(cfg.symbol, tf, '&endTime=' + end);
+      if (!ch.length) break;
+      ch.forEach(c => all.set(c.t, c));
+      if (ch[0].t <= fromT) break;
+      end = ch[0].t - 1;
+    }
+    const bars = [...all.values()].sort((a, b) => a.t - b.t);
+    if (!bars.length) throw new Error('no data');
+    bars.at = Date.now(); bars.reqFrom = reqFrom;
+    LTF.set(key, bars);
+  } catch (e) {
+    if (keep) { keep.loading = false; keep.at = Date.now(); }
+    else LTF.set(key, Object.assign([], {err: e.message || 'failed'}));
+  }
+  pineCache = {sig: '', results: []};
+  render();
+}
+/* refresh cached lower-timeframe candles when the chart scrolled further back or a live candle is stale */
+function ltfRefresh() {
+  if (!view.length) return;
+  const pre = cfg.symbol + '|', a = view[0].t, z = view[view.length - 1].t, live = z + TFMS[cfg.tf] > Date.now();
+  for (const [k, v] of LTF) {
+    if (!k.startsWith(pre) || v.loading || v.err) continue;
+    if (a < v.reqFrom || (live && Date.now() - v.at > 15000)) loadLtf(+k.slice(pre.length));
+  }
+}
+async function runPineAsync(compiled, bars, info) {
+  for (let i = 0; i < 6; i++) {
+    try { return executePineScript(compiled, bars, info); }
+    catch (e) { if (!e.needLtf) throw e; await loadLtf(e.needLtf); }
+  }
+  throw new Error('request.security: could not load the lower-timeframe candles.');
+}
 function executePineScript(compiled, bars, ctxInfo = {}) {
+  if (!ctxInfo.ltf) ctxInfo = {...ctxInfo, ltf: ltfCtx()};
+  return pineCore(compiled, bars, ctxInfo);
+}
+function pineCore(compiled, bars, ctxInfo = {}) {
   const N = bars.length, sym = ctxInfo.symbol || 'BTCUSDT', tfMs = ctxInfo.tfMs || (N > 1 ? bars[1].t - bars[0].t : 864e5);
   let bi = 0, ln = 0, ops = 0;
   const started = Date.now();
@@ -1285,9 +1350,26 @@ function executePineScript(compiled, bars, ctxInfo = {}) {
     const s = String(ev(symNode, f) || sym).split(':').pop(), want = tfToMs(ev(tfNode, f));
     if (s !== sym) rtErr(`request.security for another symbol (${s}) is not supported. Only the chart's own symbol works.`);
     if (want === tfMs) return ev(exNode, f);
-    if (want < tfMs) rtErr('request.security with a lower timeframe than the chart is not supported.');
     if (f !== root) rtErr('request.security inside a function is not supported. Move it to the top level of the script.');
     let c = htfCache.get(e.id);
+    if (!c && want < tfMs) {
+      /* lower timeframe: run the expression on real smaller candles, then give each chart bar the value of its last intrabar (same as TradingView) */
+      const raw = ctxInfo.ltf && ctxInfo.ltf.get(want);
+      if (!raw) { const er = new Error('Loading lower-timeframe data…'); er.needLtf = want; throw er; }
+      if (raw.err) rtErr('could not load the lower-timeframe candles (' + raw.err + ').');
+      const endT = bars[N-1].t + tfMs, src = raw.filter(b => b.t < endT), values = [];
+      if (!src.length) rtErr('no lower-timeframe candles are available for this symbol.');
+      executePineScript(compiled, src, {symbol: sym, tfMs: want, inputs: ctxInfo.inputs, capture: {id: e.id, values}});
+      c = new Array(N); let g = 0;
+      for (let i = 0; i < N; i++) {
+        const t0 = bars[i].t, t1 = t0 + tfMs;
+        while (g < src.length && src[g].t < t1) g++;
+        const j = g - 1;
+        c[i] = (j >= 0 && src[j].t >= t0) ? values[j] : undefined;
+      }
+      htfCache.set(e.id, c);
+      warn('Lower-timeframe values come from real ' + (want >= 6e4 ? want / 6e4 + 'm' : want / 1e3 + 's') + ' candles; each chart bar shows its last intrabar value.');
+    }
     if (!c) {
       const groups = [], lastOf = [], isMonth = want === 2592e6;
       const key = t => { if (isMonth) { const d = new Date(t); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); } const off = want === 6048e5 ? 3456e5 : 0; return Math.floor((t - off)/want)*want + off; };
@@ -1637,6 +1719,7 @@ function getPineOutputs() {
   const wait = Math.max(500, (pineCache.cost || 0) * 8) - (Date.now() - (pineCache.at || 0));
   if (pineCache.base === base && wait > 0) { clearTimeout(pineCache.timer); pineCache.timer = setTimeout(render, wait); return pineCache.results; }
 
+  ltfRefresh();
   const t0 = Date.now(), results = [], failed = pineCache.base === base ? pineCache.failed : new Map();
   for (const s of active) {
     if (failed.has(s.id)) { results.push(failed.get(s.id)); continue; }
@@ -1645,6 +1728,7 @@ function getPineOutputs() {
       results.push({id: s.id, ...applyPineStyle(executePineScript(comp, view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf], inputs: s.inputs}), s.style)});
     } catch (e) {
       const r = {id: s.id, title: s.title, error: e.message, overlay: true};
+      if (e.needLtf) { loadLtf(e.needLtf); results.push(r); continue; }
       failed.set(s.id, r); results.push(r);
     }
   }
@@ -1880,12 +1964,12 @@ $('pineTpl').onchange = e => {
     $('pineErr').style.display = 'none';
   }
 };
-$('pineRun').onclick = () => {
+$('pineRun').onclick = async () => {
   const code = $('pineCode').value.trim();
   if (!code) return;
   try {
     const compiled = compilePine(code);
-    const test = view.length ? executePineScript(compiled, view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf], inputs: pineScripts.find(x => x.id === pineEditId)?.inputs}) : null;   // run once before saving
+    const test = view.length ? await runPineAsync(compiled, view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf], inputs: pineScripts.find(x => x.id === pineEditId)?.inputs}) : null;   // run once before saving
     if (pineEditId) {
       const idx = pineScripts.findIndex(x => x.id === pineEditId);
       if (idx >= 0) pineScripts[idx] = {...pineScripts[idx], title: compiled.title, overlay: compiled.overlay, code, on: true};
@@ -2061,7 +2145,7 @@ function openIndSettings(id) {
   const built = id[0] === '@' ? id.slice(1) : null, s = built ? null : pineScripts.find(x => x.id === id);
   if (!built && !s) return;
   let meta = null, error = '';
-  if (s) { try { meta = executePineScript(compilePine(s.code), view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf], inputs: s.inputs}); } catch (e) { error = e.message; } }
+  if (s) { try { meta = executePineScript(compilePine(s.code), view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf], inputs: s.inputs}); } catch (e) { if (e.needLtf) loadLtf(e.needLtf).then(() => { if (isState && isState.s === s) { openMetaAgain(); paintIndSettings(); } }); else error = e.message; } }
   isState = {id, built, s, meta, error, tab: 'in', backup: s ? JSON.stringify({inputs: s.inputs, style: s.style}) : JSON.stringify(cfg)};
   $('isTitle').textContent = built ? BUILTINS[built].name() : s.title;
   paintIndSettings(); $('isDlg').showModal();
@@ -2145,7 +2229,7 @@ $('isDef').onclick = () => {
   else { delete s.inputs; delete s.style; pineChanged(); openMetaAgain(); }
   paintIndSettings();
 };
-function openMetaAgain() { try { isState.meta = executePineScript(compilePine(isState.s.code), view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf]}); } catch (e) { isState.error = e.message; } }
+function openMetaAgain() { try { isState.meta = executePineScript(compilePine(isState.s.code), view, {symbol: cfg.symbol, tfMs: TFMS[cfg.tf]}); isState.error = ''; } catch (e) { if (e.needLtf) { const st = isState; loadLtf(e.needLtf).then(() => { if (isState === st) { openMetaAgain(); paintIndSettings(); } }); } else isState.error = e.message; } }
 
 /* ---------- data ---------- */
 async function klinesTf(sym, tf, extra = '') {
