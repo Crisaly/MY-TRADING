@@ -52,6 +52,9 @@ dialog .row{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
 /* drawing toolbar collapse handle */
 #sideTog{position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:6;width:15px;height:42px;padding:0;border-radius:0 8px 8px 0;background:#131722;color:#fff;font-size:13px;line-height:1;display:grid;place-items:center;opacity:.85;box-shadow:0 1px 6px #0004}
 #sideTog:hover{opacity:1;background:#2962ff}
+#axTog{position:absolute;right:0;top:50%;transform:translateY(-50%);z-index:6;width:15px;height:42px;padding:0;border-radius:8px 0 0 8px;background:#131722;color:#fff;font-size:13px;line-height:1;display:grid;place-items:center;opacity:.85;box-shadow:0 1px 6px #0004}
+#axTog:hover{opacity:1;background:#2962ff}
+body.noAx #nav{left:50%}
 body.sideHidden #side{display:none}
 /* symbol search */
 #symDlg{width:min(640px,96vw);padding:0;border-radius:14px;top:8vh;margin:0 auto}
@@ -212,7 +215,7 @@ body.domOn #dom{display:flex}
 <div id="main">
   <div id="side"></div>
   <div id="wrap">
-    <canvas id="cv"></canvas>
+    <button id="axTog" title="Hide price bar" aria-label="Hide price bar">&#8250;</button><canvas id="cv"></canvas>
     <div id="quote"><button id="sell"><b id="bid">–</b>SELL</button><span id="spread"></span><button id="buy"><b id="ask">–</b>BUY</button></div>
     <div id="legend"></div>
     <div id="msg"></div>
@@ -389,7 +392,8 @@ let replay = null, playTimer = null, loadingOld = false, noMore = false;
 
 const cv = $('cv'), ctx = cv.getContext('2d');
 let W = 0, H = 0;
-const AXW = 78, AXH = 28;
+let AXW = load('axHide', false) ? 0 : 78;
+const AXH = 28;
 const defW = () => cfg.ctype === 'footprint' ? 90 : Math.max(6, Math.min(24, PW() / 70));
 const PW = () => W - AXW, PH = () => H - AXH;
 
@@ -1382,6 +1386,15 @@ $('symDlg').addEventListener('keydown', e => {
 addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) { e.preventDefault(); openSym(); } });
 
 /* ---------- collapse / expand the drawing toolbar ---------- */
+function paintAxTog() {
+  const h = AXW === 0;
+  document.body.classList.toggle('noAx', h);
+  $('axTog').innerHTML = h ? '&#8249;' : '&#8250;';
+  $('axTog').title = $('axTog').ariaLabel = h ? 'Show price bar' : 'Hide price bar';
+}
+$('axTog').addEventListener('pointerdown', e => e.stopPropagation());
+$('axTog').onclick = () => { AXW = AXW === 0 ? 78 : 0; save('axHide', AXW === 0); paintAxTog(); render(); };
+paintAxTog();
 function paintSideTog() {
   const h = document.body.classList.contains('sideHidden');
   $('sideTog').innerHTML = h ? '&#8250;' : '&#8249;';
